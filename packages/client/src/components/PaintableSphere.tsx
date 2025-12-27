@@ -15,7 +15,11 @@ const BASE_COLOR = '#a0a0a0'
 // Throttle: minimum ms between paint events (33ms = ~30 events/sec)
 const PAINT_THROTTLE_MS = 33
 
-export function PaintableSphere() {
+interface PaintableSphereProps {
+  rotation?: THREE.Quaternion
+}
+
+export function PaintableSphere({ rotation }: PaintableSphereProps) {
   const meshRef = useRef<THREE.Mesh>(null)
   const [texture, setTexture] = useState<THREE.CanvasTexture | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -363,7 +367,10 @@ export function PaintableSphere() {
   if (!texture) return null
 
   return (
-    <mesh ref={meshRef}>
+    <mesh 
+      ref={meshRef} 
+      quaternion={rotation}
+    >
       <sphereGeometry args={[1, 128, 128]} />
       <meshStandardMaterial 
         map={texture} 

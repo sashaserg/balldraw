@@ -3,7 +3,7 @@ import { useEventStore } from '../stores/eventStore'
 import { useSessionStore } from '../stores/sessionStore'
 
 export function Toolbar() {
-  const { tool, brushColor, brushSize, colors, setBrushColor, setBrushSize } = useToolStore()
+  const { tool, brushColor, brushSize, colors, rotationMode, setBrushColor, setBrushSize, toggleRotationMode } = useToolStore()
   const { undo, redo, canUndo, canRedo } = useEventStore()
   const { currentUser, isInSession } = useSessionStore()
   
@@ -109,6 +109,19 @@ export function Toolbar() {
           }} />
         </div>
       </div>
+
+      {/* Rotation mode toggle - hidden for now, will revisit later
+      <div style={styles.section}>
+        <div style={styles.label}>Rotate</div>
+        <button
+          onClick={toggleRotationMode}
+          style={styles.rotationButton}
+          title={rotationMode === 'ball' ? 'Ball rotation (shadows move)' : 'Camera rotation (shadows fixed)'}
+        >
+          {rotationMode === 'ball' ? '🎱 Ball' : '📷 Camera'}
+        </button>
+      </div>
+      */}
     </div>
   )
 }
@@ -190,6 +203,17 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    transition: 'all 0.15s ease',
+  },
+  rotationButton: {
+    padding: '8px 12px',
+    borderRadius: 8,
+    background: '#1f2937',
+    border: '2px solid #4b5563',
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
     transition: 'all 0.15s ease',
   },
 }

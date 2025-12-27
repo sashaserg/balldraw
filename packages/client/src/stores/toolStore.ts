@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 
 export type Tool = 'paint' | 'erase'
+export type RotationMode = 'camera' | 'ball'
 
 // Brush size range
 export const MIN_BRUSH_SIZE = 5
@@ -10,6 +11,7 @@ export interface ToolState {
   tool: Tool
   brushColor: string
   brushSize: number
+  rotationMode: RotationMode
   // Available options
   colors: string[]
   // Actions
@@ -17,12 +19,15 @@ export interface ToolState {
   toggleTool: () => void
   setBrushColor: (color: string) => void
   setBrushSize: (size: number) => void
+  setRotationMode: (mode: RotationMode) => void
+  toggleRotationMode: () => void
 }
 
 export const useToolStore = create<ToolState>((set) => ({
   tool: 'paint',
   brushColor: '#e74c3c', // Red
   brushSize: 20,
+  rotationMode: 'camera', // Default to camera rotation (ball rotation available but hidden)
   
   colors: [
     '#e74c3c', // Red
@@ -43,4 +48,8 @@ export const useToolStore = create<ToolState>((set) => ({
   setBrushSize: (size) => set({ 
     brushSize: Math.max(MIN_BRUSH_SIZE, Math.min(MAX_BRUSH_SIZE, size)) 
   }),
+  setRotationMode: (rotationMode) => set({ rotationMode }),
+  toggleRotationMode: () => set((state) => ({
+    rotationMode: state.rotationMode === 'camera' ? 'ball' : 'camera'
+  })),
 }))
