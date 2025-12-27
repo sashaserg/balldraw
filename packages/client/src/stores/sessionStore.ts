@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { socketService, type User } from '../network/socket'
 import { useEventStore } from './eventStore'
+import { useCursorStore } from './cursorStore'
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 
@@ -44,7 +45,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     
     try {
       // Create session via REST API
-      console.log('[Session] Creating new session...')
       const response = await fetch('/api/sessions', { method: 'POST' })
       const data = await response.json()
       
@@ -52,19 +52,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         throw new Error('Failed to create session')
       }
       
-      console.log('[Session] Created session:', data.sessionId)
-      
       // Preserve existing local events before joining
       const existingEvents = [...useEventStore.getState().events]
-      console.log('[Session] Preserving', existingEvents.length, 'local events')
       
       // Join the session (this will clear events, but we'll restore them)
       const success = await get()._joinSessionInternal(data.sessionId, userName, true)
       
       // After joining, restore and upload pre-existing local events
       if (success && existingEvents.length > 0) {
-        console.log('[Session] Restoring and uploading', existingEvents.length, 'pre-session events...')
-        
         // First restore them locally so the canvas isn't blank
         useEventStore.getState().addRemoteEvents(existingEvents)
         
@@ -110,15 +105,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         throw new Error(errorMessages[response.error])
       }
       
-      console.log('[Session] Joined successfully:', response)
-      
       // Load existing events from the session
       // When creating a new session, don't clear - we'll restore local events after
       const eventStore = useEventStore.getState()
       if (!isCreating) {
         eventStore.clearEvents()
         if (response.eventLog.length > 0) {
-          console.log('[Session] Loading', response.eventLog.length, 'events from session')
           eventStore.addRemoteEvents(response.eventLog)
         }
       }
@@ -144,7 +136,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
   
   leaveSession: () => {
-    console.log('[Session] Leaving session')
     socketService.disconnect()
     
     // Clear events when leaving
@@ -179,29 +170,95 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
 // Setup socket event listeners (runs once on import)
 function setupSocketListeners() {
-  console.log('[Session] Setting up socket listeners...')
-  
   socketService.onUserJoined(({ user }) => {
-    console.log('🎉 [Session] USER_JOINED event received!', user.name, user.id)
     const state = useSessionStore.getState()
-    console.log('[Session] Current state - isInSession:', state.isInSession, 'users:', state.users.map(u => u.name))
-    if (!state.isInSession) {
-      console.log('[Session] Ignoring user_joined - not in session')
-      return
-    }
+    if (!state.isInSession) return
     state._addUser(user)
-    console.log('[Session] Users after add:', useSessionStore.getState().users.map(u => u.name))
   })
   
-  socketService.onUserLeft(({ userId, user }) => {
-    console.log('[Session] User left:', user.name)
+  socketService.onUserLeft(({ userId }) => {
     useSessionStore.getState()._removeUser(userId)
+    useCursorStore.getState().removeCursor(userId)
+  })
+  
+  socketService.onCursorMove(({ userId, position }) => {
+    const state = useSessionStore.getState()
+    if (!state.isInSession) return
+    
+    // Find user info for this cursor
+    const user = state.users.find(u => u.id === userId)
+    if (user) {
+      useCursorStore.getState().updateCursor(userId, user.name, user.color, position)
+    }
   })
   
   socketService.onPaint((event) => {
     // Add all events from server (including our own - server is source of truth)
-    console.log('[Session] Paint event received:', event.userId, event.type)
     useEventStore.getState().addRemoteEvents([event])
+    
+    // Mark this user as drawing (to hide their cursor while painting)
+    useCursorStore.getState().setUserDrawing(event.userId, true)
+  })
+  
+  // Handle reconnection - re-join the session when socket reconnects
+  socketService.onConnect(() => {
+    const state = useSessionStore.getState()
+    
+    // If we were in a session, try to re-join
+    if (state.sessionId && state.currentUser && state.status !== 'connected') {
+      state._setStatus('connecting')
+      
+      // Re-join the session
+      socketService.joinSession(state.sessionId, state.currentUser.name)
+        .then((response) => {
+          if ('error' in response) {
+            console.error('[Session] Failed to re-join:', response.error)
+            state._setStatus('error', 'Failed to reconnect to session')
+          } else {
+            // Update user list and sync events
+            useSessionStore.setState({
+              currentUser: response.user,
+              users: response.users,
+              status: 'connected',
+              error: null,
+            })
+            
+            // Sync any events we might have missed
+            const eventStore = useEventStore.getState()
+            const currentEvents = eventStore.events
+            const serverEvents = response.eventLog
+            
+            // Find events we don't have
+            const currentIds = new Set(currentEvents.map(e => e.id))
+            const newEvents = serverEvents.filter(e => !currentIds.has(e.id))
+            
+            if (newEvents.length > 0) {
+              eventStore.addRemoteEvents(newEvents)
+            }
+          }
+        })
+        .catch(() => {
+          state._setStatus('error', 'Connection lost')
+        })
+    }
+  })
+  
+  // Handle disconnection - update status
+  socketService.onDisconnect((reason) => {
+    const state = useSessionStore.getState()
+    
+    if (state.isInSession) {
+      // If server initiated disconnect, don't try to reconnect
+      if (reason === 'io server disconnect') {
+        state._setStatus('error', 'Disconnected by server')
+      } else {
+        // Socket.IO will auto-reconnect, show connecting status
+        state._setStatus('connecting')
+      }
+      
+      // Clear remote cursors
+      useCursorStore.getState().clearCursors()
+    }
   })
 }
 

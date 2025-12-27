@@ -17,7 +17,7 @@ export interface PaintEvent {
 
 export interface CursorPosition {
   userId: string
-  position: { u: number; v: number } | null  // null when off-sphere
+  position: { x: number; y: number } | null  // null when outside canvas
 }
 
 export interface Session {

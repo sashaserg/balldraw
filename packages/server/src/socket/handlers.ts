@@ -67,8 +67,8 @@ export function setupSocketHandlers(io: Server, sessionManager: SessionManager) 
       }
     })
 
-    // Handle cursor movement
-    socket.on('cursor_move', (position: { u: number; v: number } | null) => {
+    // Handle cursor movement (2D screen position)
+    socket.on('cursor_move', (position: { x: number; y: number } | null) => {
       const sessionId = socketSessions.get(socket.id)
       if (!sessionId) return
 

@@ -34,15 +34,10 @@ export const useToolStore = create<ToolState>((set) => ({
   
   sizes: [10, 20, 40],
   
-  setTool: (tool) => {
-    console.log('[ToolStore] setTool:', tool)
-    set({ tool })
-  },
-  toggleTool: () => set((state) => {
-    const newTool = state.tool === 'paint' ? 'erase' : 'paint'
-    console.log('[ToolStore] toggleTool:', state.tool, '->', newTool)
-    return { tool: newTool }
-  }),
+  setTool: (tool) => set({ tool }),
+  toggleTool: () => set((state) => ({
+    tool: state.tool === 'paint' ? 'erase' : 'paint'
+  })),
   setBrushColor: (brushColor) => set({ brushColor }),
   setBrushSize: (brushSize) => set({ brushSize }),
 }))

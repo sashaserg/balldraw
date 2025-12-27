@@ -4,19 +4,16 @@ import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { PaintableSphere } from './PaintableSphere'
 import { useToolStore } from '../stores/toolStore'
-import type { OrbitControls as OrbitControlsType } from 'three-stdlib'
 
 export function Scene() {
-  const controlsRef = useRef<OrbitControlsType>(null)
+  const controlsRef = useRef(null)
   const { gl } = useThree()
   const toggleTool = useToolStore((state) => state.toggleTool)
 
   // Handle middle-click to toggle tool
   const handleMiddleClick = useCallback((e: MouseEvent) => {
-    console.log('[Scene] mousedown event, button:', e.button)
     if (e.button === 1) {
       e.preventDefault()
-      console.log('[Scene] Middle-click detected, toggling tool')
       toggleTool()
     }
   }, [toggleTool])
@@ -57,7 +54,6 @@ export function Scene() {
         }}
         minDistance={2}
         maxDistance={6}
-        onChange={() => console.log('[OrbitControls] Camera changed')}
       />
     </>
   )

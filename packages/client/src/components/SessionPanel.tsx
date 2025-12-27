@@ -24,7 +24,6 @@ export function SessionPanel() {
     const sessionFromUrl = params.get('session')
     
     if (sessionFromUrl && !isInSession) {
-      console.log('[SessionPanel] Session ID from URL:', sessionFromUrl)
       setJoinId(sessionFromUrl)
       setShowJoinForm(true)
       
@@ -46,7 +45,25 @@ export function SessionPanel() {
   const copyLink = () => {
     const url = `${window.location.origin}?session=${sessionId}`
     navigator.clipboard.writeText(url)
-    console.log('[SessionPanel] Copied link:', url)
+  }
+  
+  // Get status dot color based on connection status
+  const getStatusColor = () => {
+    switch (status) {
+      case 'connected': return '#4ade80'
+      case 'connecting': return '#fbbf24'
+      case 'error': return '#ef4444'
+      default: return '#6b7280'
+    }
+  }
+  
+  const getStatusText = () => {
+    switch (status) {
+      case 'connected': return 'Connected'
+      case 'connecting': return 'Connecting...'
+      case 'error': return 'Connection Error'
+      default: return 'Disconnected'
+    }
   }
   
   // If in session, show session info
@@ -54,8 +71,8 @@ export function SessionPanel() {
     return (
       <div style={styles.container}>
         <div style={styles.header}>
-          <span style={styles.statusDot} />
-          <span style={styles.title}>Session Active</span>
+          <span style={{ ...styles.statusDot, background: getStatusColor(), boxShadow: `0 0 8px ${getStatusColor()}` }} />
+          <span style={styles.title}>{getStatusText()}</span>
         </div>
         
         <div style={styles.sessionId}>

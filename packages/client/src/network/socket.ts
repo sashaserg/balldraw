@@ -22,7 +22,7 @@ export interface ServerToClientEvents {
   user_joined: (data: { user: User }) => void
   user_left: (data: { userId: string; user: User }) => void
   paint: (event: PaintEvent) => void
-  cursor_move: (data: { userId: string; position: { u: number; v: number } | null }) => void
+  cursor_move: (data: { userId: string; position: { x: number; y: number } | null }) => void
 }
 
 export interface ClientToServerEvents {
@@ -31,40 +31,32 @@ export interface ClientToServerEvents {
     callback: (response: JoinSessionResponse) => void
   ) => void
   paint: (data: Omit<PaintEvent, 'id' | 'timestamp' | 'userId'>) => void
-  cursor_move: (position: { u: number; v: number } | null) => void
+  cursor_move: (position: { x: number; y: number } | null) => void
 }
 
 type TypedSocket = Socket<ServerToClientEvents, ClientToServerEvents>
 
 class SocketService {
   private socket: TypedSocket | null = null
-  private listenersSetup = false
   
   connect(): TypedSocket {
     // If we already have a socket, reuse it (keeps listeners intact)
     if (this.socket) {
       // Reconnect if disconnected
       if (!this.socket.connected) {
-        console.log('[Socket] Reconnecting existing socket...')
         this.socket.connect()
       }
       return this.socket
     }
     
-    console.log('[Socket] Creating socket connection...')
-    
     this.socket = io('/', {
       transports: ['websocket'],
       autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     }) as TypedSocket
-    
-    this.socket.on('connect', () => {
-      console.log('[Socket] Connected:', this.socket?.id)
-    })
-    
-    this.socket.on('disconnect', (reason) => {
-      console.log('[Socket] Disconnected:', reason)
-    })
     
     this.socket.on('connect_error', (error) => {
       console.error('[Socket] Connection error:', error.message)
@@ -75,17 +67,28 @@ class SocketService {
   
   disconnect(): void {
     if (this.socket) {
-      console.log('[Socket] Disconnecting (keeping socket for listeners)...')
       this.socket.disconnect()
       // Don't null out the socket - listeners are still attached to it
       // and socket.io will reconnect to the same instance when connect() is called
     }
   }
   
+  // Subscribe to connection events
+  onConnect(callback: () => void): () => void {
+    const socket = this.connect()
+    socket.on('connect', callback)
+    return () => socket.off('connect', callback)
+  }
+  
+  onDisconnect(callback: (reason: string) => void): () => void {
+    const socket = this.connect()
+    socket.on('disconnect', callback)
+    return () => socket.off('disconnect', callback)
+  }
+  
   // Reconnect a disconnected socket
   reconnect(): void {
     if (this.socket && !this.socket.connected) {
-      console.log('[Socket] Reconnecting...')
       this.socket.connect()
     }
   }
@@ -103,10 +106,7 @@ class SocketService {
     return new Promise((resolve) => {
       const socket = this.connect()
       
-      console.log('[Socket] Joining session:', sessionId, 'as', userName)
-      
       socket.emit('join_session', { sessionId, userName }, (response) => {
-        console.log('[Socket] Join response:', response)
         resolve(response)
       })
     })
@@ -114,16 +114,13 @@ class SocketService {
   
   // Send a paint event
   sendPaint(event: Omit<PaintEvent, 'id' | 'timestamp' | 'userId'>): void {
-    if (!this.socket?.connected) {
-      console.warn('[Socket] Cannot send paint: not connected')
-      return
-    }
+    if (!this.socket?.connected) return
     
     this.socket.emit('paint', event)
   }
   
-  // Send cursor position
-  sendCursor(position: { u: number; v: number } | null): void {
+  // Send cursor position (2D normalized screen coordinates)
+  sendCursor(position: { x: number; y: number } | null): void {
     if (!this.socket?.connected) return
     this.socket.emit('cursor_move', position)
   }
@@ -149,7 +146,7 @@ class SocketService {
   }
   
   // Subscribe to cursor updates
-  onCursorMove(callback: (data: { userId: string; position: { u: number; v: number } | null }) => void): () => void {
+  onCursorMove(callback: (data: { userId: string; position: { x: number; y: number } | null }) => void): () => void {
     const socket = this.connect()
     socket.on('cursor_move', callback)
     return () => socket.off('cursor_move', callback)

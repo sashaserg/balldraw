@@ -34,6 +34,12 @@ interface EventState {
   // Current stroke being drawn (not yet committed)
   currentStroke: PaintEvent[]
   
+  // Undo stack - stores strokes that can be undone (by current user)
+  undoStack: PaintEvent[][]
+  
+  // Redo stack - stores strokes that were undone
+  redoStack: PaintEvent[][]
+  
   // For replay optimization
   lastReplayedIndex: number
   
@@ -41,6 +47,12 @@ interface EventState {
   addEvent: (event: Omit<PaintEvent, 'id' | 'timestamp'>) => PaintEvent
   commitStroke: () => void
   clearEvents: () => void
+  
+  // Undo/Redo (local strokes only)
+  undo: (userId: string) => PaintEvent[] | null
+  redo: (userId: string) => PaintEvent[] | null
+  canUndo: (userId: string) => boolean
+  canRedo: () => boolean
   
   // For receiving remote events
   addRemoteEvents: (events: PaintEvent[]) => void
@@ -56,6 +68,8 @@ const generateEventId = () => `local-${++eventCounter}-${Date.now()}`
 export const useEventStore = create<EventState>((set, get) => ({
   events: [],
   currentStroke: [],
+  undoStack: [],
+  redoStack: [],
   lastReplayedIndex: -1,
   
   addEvent: (eventData) => {
@@ -65,8 +79,6 @@ export const useEventStore = create<EventState>((set, get) => ({
       timestamp: Date.now(),
     }
     
-    console.log('[EventStore] addEvent:', event.type, 'at', event.position)
-    
     set((state) => ({
       currentStroke: [...state.currentStroke, event],
     }))
@@ -75,23 +87,94 @@ export const useEventStore = create<EventState>((set, get) => ({
   },
   
   commitStroke: () => {
-    const { currentStroke, events } = get()
+    const { currentStroke, events, undoStack } = get()
     
     if (currentStroke.length === 0) return
-    
-    console.log('[EventStore] commitStroke:', currentStroke.length, 'events')
     
     set({
       events: [...events, ...currentStroke],
       currentStroke: [],
+      // Add stroke to undo stack
+      undoStack: [...undoStack, currentStroke],
+      // Clear redo stack when new stroke is made
+      redoStack: [],
     })
   },
   
+  undo: (userId: string) => {
+    const { events, undoStack, redoStack } = get()
+    
+    // Find the last stroke by this user
+    const userStrokes = undoStack.filter(stroke => 
+      stroke.length > 0 && stroke[0]!.userId === userId
+    )
+    
+    if (userStrokes.length === 0) return null
+    
+    const lastStroke = userStrokes[userStrokes.length - 1]!
+    const strokeEventIds = new Set(lastStroke.map(e => e.id))
+    
+    // Remove these events from main events list
+    const newEvents = events.filter(e => !strokeEventIds.has(e.id))
+    
+    // Remove from undo stack, add to redo
+    const strokeIndex = undoStack.indexOf(lastStroke)
+    const newUndoStack = [...undoStack]
+    newUndoStack.splice(strokeIndex, 1)
+    
+    set({
+      events: newEvents,
+      undoStack: newUndoStack,
+      redoStack: [...redoStack, lastStroke],
+    })
+    
+    // Signal replay needed
+    window.dispatchEvent(new CustomEvent('drawball:needsReplay'))
+    
+    return lastStroke
+  },
+  
+  redo: (userId: string) => {
+    const { events, undoStack, redoStack } = get()
+    
+    // Find the last undone stroke by this user
+    const userStrokes = redoStack.filter(stroke => 
+      stroke.length > 0 && stroke[0]!.userId === userId
+    )
+    
+    if (userStrokes.length === 0) return null
+    
+    const strokeToRedo = userStrokes[userStrokes.length - 1]!
+    
+    // Remove from redo stack, add back to events and undo stack
+    const strokeIndex = redoStack.indexOf(strokeToRedo)
+    const newRedoStack = [...redoStack]
+    newRedoStack.splice(strokeIndex, 1)
+    
+    set({
+      events: [...events, ...strokeToRedo].sort((a, b) => a.timestamp - b.timestamp),
+      undoStack: [...undoStack, strokeToRedo],
+      redoStack: newRedoStack,
+    })
+    
+    return strokeToRedo
+  },
+  
+  canUndo: (userId: string) => {
+    const { undoStack } = get()
+    return undoStack.some(stroke => stroke.length > 0 && stroke[0]!.userId === userId)
+  },
+  
+  canRedo: () => {
+    return get().redoStack.length > 0
+  },
+  
   clearEvents: () => {
-    console.log('[EventStore] clearEvents')
     set({
       events: [],
       currentStroke: [],
+      undoStack: [],
+      redoStack: [],
       lastReplayedIndex: -1,
     })
     // Signal that a full replay is needed
@@ -99,7 +182,6 @@ export const useEventStore = create<EventState>((set, get) => ({
   },
   
   addRemoteEvents: (remoteEvents) => {
-    console.log('[EventStore] addRemoteEvents:', remoteEvents.length)
     set((state) => ({
       events: [...state.events, ...remoteEvents].sort((a, b) => a.timestamp - b.timestamp),
     }))

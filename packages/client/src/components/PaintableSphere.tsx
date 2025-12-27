@@ -56,8 +56,6 @@ export function PaintableSphere() {
     ctxRef.current = newCtx
     setTexture(newTexture)
     
-    console.log('[PaintableSphere] Canvas initialized:', TEXTURE_SIZE, 'x', TEXTURE_SIZE)
-    
     return () => {
       newTexture.dispose()
     }
@@ -103,7 +101,6 @@ export function PaintableSphere() {
     if (!ctx) return
     
     const events = getAllEventsSorted()
-    console.log('[PaintableSphere] Full replay:', events.length, 'events')
     
     // Clear to base color
     ctx.fillStyle = BASE_COLOR
@@ -167,17 +164,11 @@ export function PaintableSphere() {
 
   // Handle mouse events - now creates events instead of direct painting
   const handlePointerDown = useCallback((e: PointerEvent) => {
-    console.log('[PaintableSphere] pointerdown, button:', e.button)
-    
     // Only left mouse button for painting
-    if (e.button !== 0) {
-      console.log('[PaintableSphere] Ignoring non-left click for painting')
-      return
-    }
+    if (e.button !== 0) return
     
     isPainting.current = true
     const uv = getUVFromPointer()
-    console.log('[PaintableSphere] Starting paint, UV:', uv)
     
     if (uv) {
       const eventData = {
@@ -200,14 +191,15 @@ export function PaintableSphere() {
   }, [getUVFromPointer, addEvent, tool, brushColor, brushSize, isInSession, userId])
 
   const handlePointerMove = useCallback(() => {
+    const now = Date.now()
+    const uv = getUVFromPointer()
+    
+    // Only paint if we're actively painting
     if (!isPainting.current) return
     
-    // Throttle: skip if not enough time has passed
-    const now = Date.now()
+    // Throttle paint events
     if (now - lastEventTime.current < PAINT_THROTTLE_MS) return
     lastEventTime.current = now
-    
-    const uv = getUVFromPointer()
     
     if (uv) {
       const eventData = {
@@ -232,7 +224,6 @@ export function PaintableSphere() {
 
   const handlePointerUp = useCallback(() => {
     if (isPainting.current) {
-      console.log('[PaintableSphere] Stopped painting, committing stroke')
       // Only commit locally if not in session (server handles it)
       if (!isInSession) {
         commitStroke()
@@ -240,6 +231,11 @@ export function PaintableSphere() {
     }
     isPainting.current = false
     lastUV.current = null
+    
+    // Clear cursor position when not hovering
+    if (isInSession) {
+      socketService.sendCursor(null)
+    }
   }, [commitStroke, isInSession])
 
   // Attach event listeners to canvas
@@ -264,7 +260,6 @@ export function PaintableSphere() {
     const ctx = ctxRef.current
     if (!ctx) return
     
-    console.log('[PaintableSphere] Clearing canvas')
     ctx.fillStyle = BASE_COLOR
     ctx.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
     lastRenderedEventId.current = null
@@ -277,7 +272,6 @@ export function PaintableSphere() {
   // Listen for replay signal (when joining session or clearing)
   useEffect(() => {
     const handleReplayNeeded = () => {
-      console.log('[PaintableSphere] Replay signal received, resetting render state')
       lastRenderedEventId.current = null
       clearCanvas()
     }

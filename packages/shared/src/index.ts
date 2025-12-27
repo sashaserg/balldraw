@@ -25,6 +25,12 @@ export interface Position {
   v: number
 }
 
+// 2D screen position for cursor display (normalized 0-1)
+export interface Position2D {
+  x: number
+  y: number
+}
+
 export interface PaintEvent {
   id: string
   type: 'paint' | 'erase'
@@ -37,7 +43,7 @@ export interface PaintEvent {
 
 export interface CursorPosition {
   userId: string
-  position: Position | null
+  position: Position2D | null  // 2D screen position
 }
 
 // ============================================
@@ -50,7 +56,7 @@ export interface ClientToServerEvents {
     callback: (response: JoinSessionResponse) => void
   ) => void
   paint: (data: Omit<PaintEvent, 'id' | 'timestamp' | 'userId'>) => void
-  cursor_move: (position: Position | null) => void
+  cursor_move: (position: Position2D | null) => void
 }
 
 // ============================================

@@ -1,10 +1,63 @@
 import { useToolStore } from '../stores/toolStore'
+import { useEventStore } from '../stores/eventStore'
+import { useSessionStore } from '../stores/sessionStore'
 
 export function Toolbar() {
   const { tool, brushColor, brushSize, colors, sizes, setBrushColor, setBrushSize } = useToolStore()
+  const { undo, redo, canUndo, canRedo } = useEventStore()
+  const { currentUser, isInSession } = useSessionStore()
+  
+  const userId = currentUser?.id ?? 'local-user'
+  const canUndoNow = canUndo(userId)
+  const canRedoNow = canRedo()
+  
+  const handleUndo = () => {
+    if (canUndoNow && !isInSession) {
+      undo(userId)
+    }
+  }
+  
+  const handleRedo = () => {
+    if (canRedoNow && !isInSession) {
+      redo(userId)
+    }
+  }
 
   return (
     <div style={styles.container}>
+      {/* Undo/Redo buttons (local mode only) */}
+      {!isInSession && (
+        <div style={styles.section}>
+          <div style={styles.label}>History</div>
+          <div style={styles.historyRow}>
+            <button
+              onClick={handleUndo}
+              disabled={!canUndoNow}
+              style={{
+                ...styles.historyButton,
+                opacity: canUndoNow ? 1 : 0.4,
+                cursor: canUndoNow ? 'pointer' : 'not-allowed',
+              }}
+              title="Undo (Ctrl+Z)"
+            >
+              ↩️
+            </button>
+            <button
+              onClick={handleRedo}
+              disabled={!canRedoNow}
+              style={{
+                ...styles.historyButton,
+                opacity: canRedoNow ? 1 : 0.4,
+                cursor: canRedoNow ? 'pointer' : 'not-allowed',
+              }}
+              title="Redo (Ctrl+Y)"
+            >
+              ↪️
+            </button>
+          </div>
+        </div>
+      )}
+      
       {/* Tool indicator */}
       <div style={styles.section}>
         <div style={styles.label}>Tool</div>
@@ -123,6 +176,22 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 8,
     background: '#1f2937',
     cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'all 0.15s ease',
+  },
+  historyRow: {
+    display: 'flex',
+    gap: 8,
+  },
+  historyButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    background: '#1f2937',
+    border: '2px solid #4b5563',
+    fontSize: 18,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
