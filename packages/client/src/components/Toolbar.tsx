@@ -1,9 +1,9 @@
-import { useToolStore } from '../stores/toolStore'
+import { useToolStore, MIN_BRUSH_SIZE, MAX_BRUSH_SIZE } from '../stores/toolStore'
 import { useEventStore } from '../stores/eventStore'
 import { useSessionStore } from '../stores/sessionStore'
 
 export function Toolbar() {
-  const { tool, brushColor, brushSize, colors, sizes, setBrushColor, setBrushSize } = useToolStore()
+  const { tool, brushColor, brushSize, colors, setBrushColor, setBrushSize } = useToolStore()
   const { undo, redo, canUndo, canRedo } = useEventStore()
   const { currentUser, isInSession } = useSessionStore()
   
@@ -91,25 +91,22 @@ export function Toolbar() {
 
       {/* Brush size */}
       <div style={styles.section}>
-        <div style={styles.label}>Size</div>
-        <div style={styles.sizeRow}>
-          {sizes.map((size) => (
-            <button
-              key={size}
-              onClick={() => setBrushSize(size)}
-              style={{
-                ...styles.sizeButton,
-                border: brushSize === size ? '2px solid white' : '2px solid #4b5563',
-              }}
-            >
-              <div style={{
-                width: size,
-                height: size,
-                borderRadius: '50%',
-                background: brushColor,
-              }} />
-            </button>
-          ))}
+        <div style={styles.label}>Size: {brushSize}px</div>
+        <input
+          type="range"
+          min={MIN_BRUSH_SIZE}
+          max={MAX_BRUSH_SIZE}
+          value={brushSize}
+          onChange={(e) => setBrushSize(Number(e.target.value))}
+          style={styles.sizeSlider}
+        />
+        <div style={styles.sizePreviewContainer}>
+          <div style={{
+            width: Math.min(brushSize, 40),
+            height: Math.min(brushSize, 40),
+            borderRadius: '50%',
+            background: brushColor,
+          }} />
         </div>
       </div>
     </div>
@@ -166,20 +163,18 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     transition: 'all 0.15s ease',
   },
-  sizeRow: {
-    display: 'flex',
-    gap: 8,
-  },
-  sizeButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    background: '#1f2937',
+  sizeSlider: {
+    width: 100,
+    height: 6,
     cursor: 'pointer',
+    accentColor: '#3b82f6',
+  },
+  sizePreviewContainer: {
+    width: 40,
+    height: 40,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    transition: 'all 0.15s ease',
   },
   historyRow: {
     display: 'flex',

@@ -2,13 +2,16 @@ import { create } from 'zustand'
 
 export type Tool = 'paint' | 'erase'
 
+// Brush size range
+export const MIN_BRUSH_SIZE = 5
+export const MAX_BRUSH_SIZE = 60
+
 export interface ToolState {
   tool: Tool
   brushColor: string
   brushSize: number
   // Available options
   colors: string[]
-  sizes: number[]
   // Actions
   setTool: (tool: Tool) => void
   toggleTool: () => void
@@ -32,12 +35,12 @@ export const useToolStore = create<ToolState>((set) => ({
     '#2c3e50', // Dark
   ],
   
-  sizes: [10, 20, 40],
-  
   setTool: (tool) => set({ tool }),
   toggleTool: () => set((state) => ({
     tool: state.tool === 'paint' ? 'erase' : 'paint'
   })),
   setBrushColor: (brushColor) => set({ brushColor }),
-  setBrushSize: (brushSize) => set({ brushSize }),
+  setBrushSize: (size) => set({ 
+    brushSize: Math.max(MIN_BRUSH_SIZE, Math.min(MAX_BRUSH_SIZE, size)) 
+  }),
 }))
