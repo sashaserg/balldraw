@@ -5,7 +5,7 @@ export type RotationMode = 'camera' | 'ball'
 
 // Brush size range
 export const MIN_BRUSH_SIZE = 5
-export const MAX_BRUSH_SIZE = 60
+export const MAX_BRUSH_SIZE = 120
 
 export interface ToolState {
   tool: Tool
