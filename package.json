@@ -1,0 +1,17 @@
+{
+  "name": "drawball",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Real-time collaborative 3D ball painting",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "typecheck": "turbo typecheck",
+    "lint": "turbo lint"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
+  },
+  "packageManager": "pnpm@9.15.1"
+}
