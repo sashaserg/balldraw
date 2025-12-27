@@ -79,14 +79,59 @@ export function PaintableSphere() {
     ctx.lineJoin = 'round'
     
     if (event.fromPosition) {
-      // Draw a line from previous position to current
-      const fromX = event.fromPosition.u * TEXTURE_SIZE
+      const fromU = event.fromPosition.u
+      const toU = event.position.u
+      const fromX = fromU * TEXTURE_SIZE
       const fromY = (1 - event.fromPosition.v) * TEXTURE_SIZE
       
-      ctx.beginPath()
-      ctx.moveTo(fromX, fromY)
-      ctx.lineTo(x, y)
-      ctx.stroke()
+      // Check for UV seam crossing (large jump in U coordinate)
+      const uDistance = Math.abs(toU - fromU)
+      
+      if (uDistance > 0.5) {
+        // Crossing the UV seam - draw two line segments that wrap around
+        // Calculate the interpolated Y at the seam crossing
+        const totalDistance = uDistance > 0.5 ? (1 - uDistance) : uDistance
+        
+        if (fromU > toU) {
+          // Going from high U to low U (crossing right edge)
+          // Segment 1: from start to right edge (u=1)
+          const t1 = (1 - fromU) / ((1 - fromU) + toU)
+          const seamY = fromY + (y - fromY) * t1
+          
+          ctx.beginPath()
+          ctx.moveTo(fromX, fromY)
+          ctx.lineTo(TEXTURE_SIZE, seamY)
+          ctx.stroke()
+          
+          // Segment 2: from left edge (u=0) to end
+          ctx.beginPath()
+          ctx.moveTo(0, seamY)
+          ctx.lineTo(x, y)
+          ctx.stroke()
+        } else {
+          // Going from low U to high U (crossing left edge)
+          // Segment 1: from start to left edge (u=0)
+          const t1 = fromU / (fromU + (1 - toU))
+          const seamY = fromY + (y - fromY) * t1
+          
+          ctx.beginPath()
+          ctx.moveTo(fromX, fromY)
+          ctx.lineTo(0, seamY)
+          ctx.stroke()
+          
+          // Segment 2: from right edge (u=1) to end
+          ctx.beginPath()
+          ctx.moveTo(TEXTURE_SIZE, seamY)
+          ctx.lineTo(x, y)
+          ctx.stroke()
+        }
+      } else {
+        // Normal case - draw a line from previous position to current
+        ctx.beginPath()
+        ctx.moveTo(fromX, fromY)
+        ctx.lineTo(x, y)
+        ctx.stroke()
+      }
     } else {
       // Draw a circle at the point
       ctx.beginPath()
