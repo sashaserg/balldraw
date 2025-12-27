@@ -33,10 +33,13 @@ export function Scene() {
   return (
     <>
       {/* Ambient light for base illumination */}
-      <ambientLight intensity={0.6} />
+      <ambientLight intensity={0.4} />
       
-      {/* Directional light for some depth */}
-      <directionalLight position={[5, 5, 5]} intensity={0.8} />
+      {/* Main directional light */}
+      <directionalLight position={[5, 5, 5]} intensity={1.2} />
+      
+      {/* Subtle fill light from opposite side */}
+      <directionalLight position={[-3, -2, -3]} intensity={0.3} />
       
       {/* The paintable sphere */}
       <PaintableSphere />

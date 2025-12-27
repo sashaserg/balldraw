@@ -365,7 +365,11 @@ export function PaintableSphere() {
   return (
     <mesh ref={meshRef}>
       <sphereGeometry args={[1, 128, 128]} />
-      <meshStandardMaterial map={texture} />
+      <meshStandardMaterial 
+        map={texture} 
+        roughness={0.4}
+        metalness={0.05}
+      />
     </mesh>
   )
 }
