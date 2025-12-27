@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, useCallback } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useToolStore } from '../stores/toolStore'
+import { useEventStore, type PaintEvent } from '../stores/eventStore'
 
 // Canvas texture resolution (higher = more detail, but more memory)
 const TEXTURE_SIZE = 1024
@@ -9,17 +10,28 @@ const TEXTURE_SIZE = 1024
 // Base gray color for the sphere
 const BASE_COLOR = '#a0a0a0'
 
+// Local user ID (will be replaced by server-assigned ID in Phase 3)
+const LOCAL_USER_ID = 'local-user'
+
+// Throttle: minimum ms between paint events (33ms = ~30 events/sec)
+const PAINT_THROTTLE_MS = 33
+
 export function PaintableSphere() {
   const meshRef = useRef<THREE.Mesh>(null)
   const [texture, setTexture] = useState<THREE.CanvasTexture | null>(null)
-  const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null)
-  const [ctx, setCtx] = useState<CanvasRenderingContext2D | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const ctxRef = useRef<CanvasRenderingContext2D | null>(null)
   
   const isPainting = useRef(false)
-  const lastUV = useRef<{ x: number; y: number } | null>(null)
+  const lastUV = useRef<{ u: number; v: number } | null>(null)
+  const lastEventTime = useRef<number>(0)
+  
+  // Track which events we've already rendered
+  const lastRenderedEventId = useRef<string | null>(null)
   
   const { gl, camera, raycaster, pointer } = useThree()
   const { tool, brushColor, brushSize } = useToolStore()
+  const { addEvent, commitStroke, getAllEventsSorted } = useEventStore()
 
   // Initialize the canvas texture
   useEffect(() => {
@@ -37,35 +49,38 @@ export function PaintableSphere() {
     const newTexture = new THREE.CanvasTexture(newCanvas)
     newTexture.needsUpdate = true
     
-    setCanvas(newCanvas)
-    setCtx(newCtx)
+    canvasRef.current = newCanvas
+    ctxRef.current = newCtx
     setTexture(newTexture)
+    
+    console.log('[PaintableSphere] Canvas initialized:', TEXTURE_SIZE, 'x', TEXTURE_SIZE)
     
     return () => {
       newTexture.dispose()
     }
   }, [])
 
-  // Paint at UV coordinates
-  const paintAtUV = useCallback((uv: { x: number; y: number }, fromUV?: { x: number; y: number }) => {
-    if (!ctx || !texture) return
+  // Render a single event to the canvas
+  const renderEvent = useCallback((event: PaintEvent) => {
+    const ctx = ctxRef.current
+    if (!ctx) return
     
-    const x = uv.x * TEXTURE_SIZE
-    const y = (1 - uv.y) * TEXTURE_SIZE // Flip Y for canvas coordinates
+    const x = event.position.u * TEXTURE_SIZE
+    const y = (1 - event.position.v) * TEXTURE_SIZE // Flip Y for canvas coordinates
     
-    // Choose color based on tool
-    const color = tool === 'erase' ? BASE_COLOR : brushColor
+    // Choose color based on event type
+    const color = event.type === 'erase' ? BASE_COLOR : event.color
     
     ctx.fillStyle = color
     ctx.strokeStyle = color
-    ctx.lineWidth = brushSize
+    ctx.lineWidth = event.brushSize
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
     
-    if (fromUV) {
+    if (event.fromPosition) {
       // Draw a line from previous position to current
-      const fromX = fromUV.x * TEXTURE_SIZE
-      const fromY = (1 - fromUV.y) * TEXTURE_SIZE
+      const fromX = event.fromPosition.u * TEXTURE_SIZE
+      const fromY = (1 - event.fromPosition.v) * TEXTURE_SIZE
       
       ctx.beginPath()
       ctx.moveTo(fromX, fromY)
@@ -74,28 +89,80 @@ export function PaintableSphere() {
     } else {
       // Draw a circle at the point
       ctx.beginPath()
-      ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2)
+      ctx.arc(x, y, event.brushSize / 2, 0, Math.PI * 2)
       ctx.fill()
     }
+  }, [])
+
+  // Full replay: clear canvas and render all events
+  const fullReplay = useCallback(() => {
+    const ctx = ctxRef.current
+    if (!ctx) return
     
-    texture.needsUpdate = true
-  }, [ctx, texture, tool, brushColor, brushSize])
+    const events = getAllEventsSorted()
+    console.log('[PaintableSphere] Full replay:', events.length, 'events')
+    
+    // Clear to base color
+    ctx.fillStyle = BASE_COLOR
+    ctx.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
+    
+    // Render all events in order
+    for (const event of events) {
+      renderEvent(event)
+    }
+    
+    lastRenderedEventId.current = events[events.length - 1]?.id ?? null
+    
+    if (texture) {
+      texture.needsUpdate = true
+    }
+  }, [getAllEventsSorted, renderEvent, texture])
+
+  // Incremental render: only render new events since last render
+  const incrementalRender = useCallback(() => {
+    const events = getAllEventsSorted()
+    
+    if (events.length === 0) return
+    
+    // Find where we left off
+    let startIndex = 0
+    if (lastRenderedEventId.current) {
+      const lastIndex = events.findIndex(e => e.id === lastRenderedEventId.current)
+      if (lastIndex !== -1) {
+        startIndex = lastIndex + 1
+      }
+    }
+    
+    // Render new events
+    const newEvents = events.slice(startIndex)
+    if (newEvents.length === 0) return
+    
+    for (const event of newEvents) {
+      renderEvent(event)
+    }
+    
+    lastRenderedEventId.current = events[events.length - 1]?.id ?? null
+    
+    if (texture) {
+      texture.needsUpdate = true
+    }
+  }, [getAllEventsSorted, renderEvent, texture])
 
   // Get UV from mouse position using raycasting
-  const getUVFromPointer = useCallback((): { x: number; y: number } | null => {
+  const getUVFromPointer = useCallback((): { u: number; v: number } | null => {
     if (!meshRef.current) return null
     
     raycaster.setFromCamera(pointer, camera)
     const intersects = raycaster.intersectObject(meshRef.current)
     
     if (intersects.length > 0 && intersects[0]?.uv) {
-      return { x: intersects[0].uv.x, y: intersects[0].uv.y }
+      return { u: intersects[0].uv.x, v: intersects[0].uv.y }
     }
     
     return null
   }, [raycaster, pointer, camera])
 
-  // Handle mouse events
+  // Handle mouse events - now creates events instead of direct painting
   const handlePointerDown = useCallback((e: PointerEvent) => {
     console.log('[PaintableSphere] pointerdown, button:', e.button)
     
@@ -110,29 +177,48 @@ export function PaintableSphere() {
     console.log('[PaintableSphere] Starting paint, UV:', uv)
     
     if (uv) {
-      paintAtUV(uv)
+      addEvent({
+        type: tool,
+        userId: LOCAL_USER_ID,
+        position: uv,
+        color: brushColor,
+        brushSize,
+      })
       lastUV.current = uv
     }
-  }, [getUVFromPointer, paintAtUV])
+  }, [getUVFromPointer, addEvent, tool, brushColor, brushSize])
 
   const handlePointerMove = useCallback(() => {
     if (!isPainting.current) return
     
+    // Throttle: skip if not enough time has passed
+    const now = Date.now()
+    if (now - lastEventTime.current < PAINT_THROTTLE_MS) return
+    lastEventTime.current = now
+    
     const uv = getUVFromPointer()
     
     if (uv) {
-      paintAtUV(uv, lastUV.current ?? undefined)
+      addEvent({
+        type: tool,
+        userId: LOCAL_USER_ID,
+        position: uv,
+        fromPosition: lastUV.current ?? undefined,
+        color: brushColor,
+        brushSize,
+      })
       lastUV.current = uv
     }
-  }, [getUVFromPointer, paintAtUV])
+  }, [getUVFromPointer, addEvent, tool, brushColor, brushSize])
 
   const handlePointerUp = useCallback(() => {
     if (isPainting.current) {
-      console.log('[PaintableSphere] Stopped painting')
+      console.log('[PaintableSphere] Stopped painting, committing stroke')
+      commitStroke()
     }
     isPainting.current = false
     lastUV.current = null
-  }, [])
+  }, [commitStroke])
 
   // Attach event listeners to canvas
   useEffect(() => {
@@ -151,12 +237,52 @@ export function PaintableSphere() {
     }
   }, [gl, handlePointerDown, handlePointerMove, handlePointerUp])
 
-  // Ensure texture updates are reflected
+  // Render events on each frame
   useFrame(() => {
-    if (texture) {
-      texture.needsUpdate = false // Reset after each frame
-    }
+    incrementalRender()
   })
+
+  // Clear canvas to base color
+  const clearCanvas = useCallback(() => {
+    const ctx = ctxRef.current
+    if (!ctx) return
+    
+    console.log('[PaintableSphere] Clearing canvas')
+    ctx.fillStyle = BASE_COLOR
+    ctx.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
+    lastRenderedEventId.current = null
+    
+    if (texture) {
+      texture.needsUpdate = true
+    }
+  }, [texture])
+
+  // Expose functions for debugging
+  useEffect(() => {
+    // @ts-expect-error - expose for debugging
+    window.__drawball = {
+      fullReplay,
+      clearCanvas,
+      getEvents: getAllEventsSorted,
+      replayWithFlash: () => {
+        const ctx = ctxRef.current
+        if (!ctx || !texture) return
+        
+        // Flash white briefly to show replay is happening
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
+        texture.needsUpdate = true
+        
+        // After a short delay, do the actual replay
+        setTimeout(() => {
+          ctx.fillStyle = BASE_COLOR
+          ctx.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
+          lastRenderedEventId.current = null
+          fullReplay()
+        }, 100)
+      }
+    }
+  }, [fullReplay, clearCanvas, getAllEventsSorted, texture])
 
   if (!texture) return null
 
