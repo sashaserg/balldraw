@@ -7,7 +7,7 @@ import { useSessionStore } from '../stores/sessionStore'
 import { socketService } from '../network/socket'
 
 // Canvas texture resolution (higher = more detail, but more memory)
-const TEXTURE_SIZE = 1024
+const TEXTURE_SIZE = 4096
 
 // Base gray color for the sphere
 const BASE_COLOR = '#a0a0a0'
@@ -50,6 +50,12 @@ export function PaintableSphere() {
     newCtx.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
     
     const newTexture = new THREE.CanvasTexture(newCanvas)
+    // Improve texture quality
+    newTexture.colorSpace = THREE.SRGBColorSpace
+    newTexture.anisotropy = 16 // Sharper at angles
+    newTexture.minFilter = THREE.LinearMipmapLinearFilter
+    newTexture.magFilter = THREE.LinearFilter
+    newTexture.generateMipmaps = true
     newTexture.needsUpdate = true
     
     canvasRef.current = newCanvas
@@ -89,9 +95,6 @@ export function PaintableSphere() {
       
       if (uDistance > 0.5) {
         // Crossing the UV seam - draw two line segments that wrap around
-        // Calculate the interpolated Y at the seam crossing
-        const totalDistance = uDistance > 0.5 ? (1 - uDistance) : uDistance
-        
         if (fromU > toU) {
           // Going from high U to low U (crossing right edge)
           // Segment 1: from start to right edge (u=1)
@@ -361,7 +364,7 @@ export function PaintableSphere() {
 
   return (
     <mesh ref={meshRef}>
-      <sphereGeometry args={[1, 64, 64]} />
+      <sphereGeometry args={[1, 128, 128]} />
       <meshStandardMaterial map={texture} />
     </mesh>
   )
