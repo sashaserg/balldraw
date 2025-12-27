@@ -35,6 +35,8 @@ export function setupSocketHandlers(io: Server, sessionManager: SessionManager) 
 
       // Join the Socket.IO room
       socket.join(sessionId)
+      
+      console.log(`📢 User ${userName} joined session ${sessionId}, room has ${io.sockets.adapter.rooms.get(sessionId)?.size || 0} members`)
 
       // Send current state to the new user
       callback({
@@ -44,7 +46,8 @@ export function setupSocketHandlers(io: Server, sessionManager: SessionManager) 
         eventLog: sessionManager.getEvents(sessionId),
       })
 
-      // Notify others in the session
+      // Notify others in the session (everyone except the joining user)
+      console.log(`📣 Broadcasting user_joined to session ${sessionId} (excluding ${socket.id})`)
       socket.to(sessionId).emit('user_joined', { user })
     })
 

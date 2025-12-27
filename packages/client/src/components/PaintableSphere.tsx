@@ -3,15 +3,14 @@ import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useToolStore } from '../stores/toolStore'
 import { useEventStore, type PaintEvent } from '../stores/eventStore'
+import { useSessionStore } from '../stores/sessionStore'
+import { socketService } from '../network/socket'
 
 // Canvas texture resolution (higher = more detail, but more memory)
 const TEXTURE_SIZE = 1024
 
 // Base gray color for the sphere
 const BASE_COLOR = '#a0a0a0'
-
-// Local user ID (will be replaced by server-assigned ID in Phase 3)
-const LOCAL_USER_ID = 'local-user'
 
 // Throttle: minimum ms between paint events (33ms = ~30 events/sec)
 const PAINT_THROTTLE_MS = 33
@@ -32,6 +31,10 @@ export function PaintableSphere() {
   const { gl, camera, raycaster, pointer } = useThree()
   const { tool, brushColor, brushSize } = useToolStore()
   const { addEvent, commitStroke, getAllEventsSorted } = useEventStore()
+  const { isInSession, currentUser } = useSessionStore()
+  
+  // Get userId - from session if connected, otherwise local
+  const userId = currentUser?.id ?? 'local-user'
 
   // Initialize the canvas texture
   useEffect(() => {
@@ -177,16 +180,24 @@ export function PaintableSphere() {
     console.log('[PaintableSphere] Starting paint, UV:', uv)
     
     if (uv) {
-      addEvent({
+      const eventData = {
         type: tool,
-        userId: LOCAL_USER_ID,
         position: uv,
         color: brushColor,
         brushSize,
-      })
+      }
+      
+      if (isInSession) {
+        // Send to server - it will broadcast back to us and others
+        socketService.sendPaint(eventData)
+      } else {
+        // Local mode - add directly to store
+        addEvent({ ...eventData, userId })
+      }
+      
       lastUV.current = uv
     }
-  }, [getUVFromPointer, addEvent, tool, brushColor, brushSize])
+  }, [getUVFromPointer, addEvent, tool, brushColor, brushSize, isInSession, userId])
 
   const handlePointerMove = useCallback(() => {
     if (!isPainting.current) return
@@ -199,26 +210,37 @@ export function PaintableSphere() {
     const uv = getUVFromPointer()
     
     if (uv) {
-      addEvent({
+      const eventData = {
         type: tool,
-        userId: LOCAL_USER_ID,
         position: uv,
         fromPosition: lastUV.current ?? undefined,
         color: brushColor,
         brushSize,
-      })
+      }
+      
+      if (isInSession) {
+        // Send to server
+        socketService.sendPaint(eventData)
+      } else {
+        // Local mode
+        addEvent({ ...eventData, userId })
+      }
+      
       lastUV.current = uv
     }
-  }, [getUVFromPointer, addEvent, tool, brushColor, brushSize])
+  }, [getUVFromPointer, addEvent, tool, brushColor, brushSize, isInSession, userId])
 
   const handlePointerUp = useCallback(() => {
     if (isPainting.current) {
       console.log('[PaintableSphere] Stopped painting, committing stroke')
-      commitStroke()
+      // Only commit locally if not in session (server handles it)
+      if (!isInSession) {
+        commitStroke()
+      }
     }
     isPainting.current = false
     lastUV.current = null
-  }, [commitStroke])
+  }, [commitStroke, isInSession])
 
   // Attach event listeners to canvas
   useEffect(() => {
@@ -237,11 +259,6 @@ export function PaintableSphere() {
     }
   }, [gl, handlePointerDown, handlePointerMove, handlePointerUp])
 
-  // Render events on each frame
-  useFrame(() => {
-    incrementalRender()
-  })
-
   // Clear canvas to base color
   const clearCanvas = useCallback(() => {
     const ctx = ctxRef.current
@@ -256,6 +273,23 @@ export function PaintableSphere() {
       texture.needsUpdate = true
     }
   }, [texture])
+
+  // Listen for replay signal (when joining session or clearing)
+  useEffect(() => {
+    const handleReplayNeeded = () => {
+      console.log('[PaintableSphere] Replay signal received, resetting render state')
+      lastRenderedEventId.current = null
+      clearCanvas()
+    }
+    
+    window.addEventListener('drawball:needsReplay', handleReplayNeeded)
+    return () => window.removeEventListener('drawball:needsReplay', handleReplayNeeded)
+  }, [clearCanvas])
+
+  // Render events on each frame
+  useFrame(() => {
+    incrementalRender()
+  })
 
   // Expose functions for debugging
   useEffect(() => {

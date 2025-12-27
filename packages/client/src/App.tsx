@@ -2,6 +2,7 @@ import { Canvas } from '@react-three/fiber'
 import { Scene } from './components/Scene'
 import { Toolbar } from './components/Toolbar'
 import { DebugPanel } from './components/DebugPanel'
+import { SessionPanel } from './components/SessionPanel'
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
       >
         <Scene />
       </Canvas>
+      <SessionPanel />
       <Toolbar />
       <DebugPanel />
     </>

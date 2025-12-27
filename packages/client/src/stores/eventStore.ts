@@ -94,6 +94,8 @@ export const useEventStore = create<EventState>((set, get) => ({
       currentStroke: [],
       lastReplayedIndex: -1,
     })
+    // Signal that a full replay is needed
+    window.dispatchEvent(new CustomEvent('drawball:needsReplay'))
   },
   
   addRemoteEvents: (remoteEvents) => {
