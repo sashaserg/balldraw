@@ -1,16 +1,17 @@
 import { useToolStore, MIN_BRUSH_SIZE, MAX_BRUSH_SIZE } from '../stores/toolStore'
-import { useEventStore } from '../stores/eventStore'
-import { useSessionStore } from '../stores/sessionStore'
+// Hidden: undo/redo
+// import { useEventStore } from '../stores/eventStore'
+// import { useSessionStore } from '../stores/sessionStore'
 
 export function Toolbar() {
-  const { tool, brushColor, brushSize, colors, rotationMode, setBrushColor, setBrushSize, toggleRotationMode } = useToolStore()
-  const { undo, redo, canUndo, canRedo } = useEventStore()
-  const { currentUser, isInSession } = useSessionStore()
-  
-  const userId = currentUser?.id ?? 'local-user'
-  const canUndoNow = canUndo(userId)
-  const canRedoNow = canRedo()
-  
+  const { tool, brushColor, brushSize, colors, setBrushColor, setBrushSize } = useToolStore()
+  // Hidden: undo/redo and rotation mode toggle
+  // const { undo, redo, canUndo, canRedo } = useEventStore()
+  // const { rotationMode, toggleRotationMode } = useToolStore()
+  // const { currentUser } = useSessionStore()
+  // const userId = currentUser?.id ?? 'local-user'
+
+  /* Hidden: undo/redo handlers - revisiting later
   const handleUndo = () => {
     if (canUndoNow && !isInSession) {
       undo(userId)
@@ -22,10 +23,11 @@ export function Toolbar() {
       redo(userId)
     }
   }
+  */
 
   return (
     <div style={styles.container}>
-      {/* Undo/Redo buttons (local mode only) */}
+      {/* Undo/Redo buttons - hidden for now, revisiting later
       {!isInSession && (
         <div style={styles.section}>
           <div style={styles.label}>History</div>
@@ -57,6 +59,7 @@ export function Toolbar() {
           </div>
         </div>
       )}
+      */}
       
       {/* Tool indicator */}
       <div style={styles.section}>

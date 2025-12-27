@@ -5,6 +5,7 @@ import { useToolStore } from '../stores/toolStore'
 import { useEventStore, type PaintEvent } from '../stores/eventStore'
 import { useSessionStore } from '../stores/sessionStore'
 import { socketService } from '../network/socket'
+import { perfMonitor } from '../utils/perfMonitor'
 
 // Canvas texture resolution (higher = more detail, but more memory)
 const TEXTURE_SIZE = 4096
@@ -172,14 +173,14 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
 
   // Incremental render: only render new events since last render
   const incrementalRender = useCallback(() => {
-    const events = getAllEventsSorted()
+    const events = perfMonitor.trackSort(() => getAllEventsSorted())
     
     if (events.length === 0) return
     
     // Find where we left off
     let startIndex = 0
     if (lastRenderedEventId.current) {
-      const lastIndex = events.findIndex(e => e.id === lastRenderedEventId.current)
+      const lastIndex = perfMonitor.trackFindIndex(events, e => e.id === lastRenderedEventId.current)
       if (lastIndex !== -1) {
         startIndex = lastIndex + 1
       }
@@ -189,6 +190,7 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
     const newEvents = events.slice(startIndex)
     if (newEvents.length === 0) return
     
+    perfMonitor.trackRender(newEvents.length)
     for (const event of newEvents) {
       renderEvent(event)
     }
@@ -334,6 +336,7 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
 
   // Render events on each frame
   useFrame(() => {
+    perfMonitor.frameStart()
     incrementalRender()
   })
 

@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import { socketService, type User } from '../network/socket'
-import { useEventStore } from './eventStore'
+import { useEventStore, type PaintEvent } from './eventStore'
 import { useCursorStore } from './cursorStore'
+import { createBatcher } from '../utils/batcher'
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 
@@ -168,6 +169,21 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 }))
 
+// Batch incoming paint events to reduce state updates
+// Collects events for 16ms (1 frame) or until 50 events, then flushes
+const paintEventBatcher = createBatcher<PaintEvent>(
+  (events) => {
+    useEventStore.getState().addRemoteEvents(events)
+    
+    // Mark users as drawing
+    const userIds = new Set(events.map(e => e.userId))
+    userIds.forEach(userId => {
+      useCursorStore.getState().setUserDrawing(userId, true)
+    })
+  },
+  { delayMs: 16, maxSize: 50 }
+)
+
 // Setup socket event listeners (runs once on import)
 function setupSocketListeners() {
   socketService.onUserJoined(({ user }) => {
@@ -193,11 +209,8 @@ function setupSocketListeners() {
   })
   
   socketService.onPaint((event) => {
-    // Add all events from server (including our own - server is source of truth)
-    useEventStore.getState().addRemoteEvents([event])
-    
-    // Mark this user as drawing (to hide their cursor while painting)
-    useCursorStore.getState().setUserDrawing(event.userId, true)
+    // Batch events for efficiency - reduces state updates when many users are painting
+    paintEventBatcher.add(event)
   })
   
   // Handle reconnection - re-join the session when socket reconnects
