@@ -6,6 +6,7 @@ import { useEventStore, type PaintEvent } from '../stores/eventStore'
 import { useSessionStore } from '../stores/sessionStore'
 import { socketService } from '../network/socket'
 import { perfMonitor } from '../utils/perfMonitor'
+import { sphereRoundBrush, type BrushConfig } from '../brushes'
 
 // Canvas texture resolution (higher = more detail, but more memory)
 const TEXTURE_SIZE = 4096
@@ -72,80 +73,18 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
     }
   }, [])
 
-  // Render a single event to the canvas
+  // Render a single event to the canvas using the sphere brush
   const renderEvent = useCallback((event: PaintEvent) => {
     const ctx = ctxRef.current
     if (!ctx) return
     
-    const x = event.position.u * TEXTURE_SIZE
-    const y = (1 - event.position.v) * TEXTURE_SIZE // Flip Y for canvas coordinates
-    
-    // Choose color based on event type
-    const color = event.type === 'erase' ? BASE_COLOR : event.color
-    
-    ctx.fillStyle = color
-    ctx.strokeStyle = color
-    ctx.lineWidth = event.brushSize
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-    
-    if (event.fromPosition) {
-      const fromU = event.fromPosition.u
-      const toU = event.position.u
-      const fromX = fromU * TEXTURE_SIZE
-      const fromY = (1 - event.fromPosition.v) * TEXTURE_SIZE
-      
-      // Check for UV seam crossing (large jump in U coordinate)
-      const uDistance = Math.abs(toU - fromU)
-      
-      if (uDistance > 0.5) {
-        // Crossing the UV seam - draw two line segments that wrap around
-        if (fromU > toU) {
-          // Going from high U to low U (crossing right edge)
-          // Segment 1: from start to right edge (u=1)
-          const t1 = (1 - fromU) / ((1 - fromU) + toU)
-          const seamY = fromY + (y - fromY) * t1
-          
-          ctx.beginPath()
-          ctx.moveTo(fromX, fromY)
-          ctx.lineTo(TEXTURE_SIZE, seamY)
-          ctx.stroke()
-          
-          // Segment 2: from left edge (u=0) to end
-          ctx.beginPath()
-          ctx.moveTo(0, seamY)
-          ctx.lineTo(x, y)
-          ctx.stroke()
-        } else {
-          // Going from low U to high U (crossing left edge)
-          // Segment 1: from start to left edge (u=0)
-          const t1 = fromU / (fromU + (1 - toU))
-          const seamY = fromY + (y - fromY) * t1
-          
-          ctx.beginPath()
-          ctx.moveTo(fromX, fromY)
-          ctx.lineTo(0, seamY)
-          ctx.stroke()
-          
-          // Segment 2: from right edge (u=1) to end
-          ctx.beginPath()
-          ctx.moveTo(TEXTURE_SIZE, seamY)
-          ctx.lineTo(x, y)
-          ctx.stroke()
-        }
-      } else {
-        // Normal case - draw a line from previous position to current
-        ctx.beginPath()
-        ctx.moveTo(fromX, fromY)
-        ctx.lineTo(x, y)
-        ctx.stroke()
-      }
-    } else {
-      // Draw a circle at the point
-      ctx.beginPath()
-      ctx.arc(x, y, event.brushSize / 2, 0, Math.PI * 2)
-      ctx.fill()
+    const brushConfig: BrushConfig = {
+      ctx,
+      textureSize: TEXTURE_SIZE,
+      baseColor: BASE_COLOR,
     }
+    
+    sphereRoundBrush.render(event, brushConfig)
   }, [])
 
   // Full replay: clear canvas and render all events
