@@ -7,15 +7,23 @@ import { setupSocketHandlers } from './socket/handlers.js'
 
 const PORT = process.env.PORT ?? 3001
 
+// CORS origins - localhost for dev, CLIENT_URL env var for prod
+const CORS_ORIGINS = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:3000',
+  ...(process.env.CLIENT_URL ? [process.env.CLIENT_URL] : []),
+]
+
 const app = express()
-app.use(cors())
+app.use(cors({ origin: CORS_ORIGINS }))
 app.use(express.json())
 
 const httpServer = createServer(app)
 
 const io = new Server(httpServer, {
   cors: {
-    origin: ['http://localhost:5173', 'http://localhost:3000'],
+    origin: CORS_ORIGINS,
     methods: ['GET', 'POST'],
   },
 })

@@ -4,6 +4,9 @@ import { useEventStore, type PaintEvent } from './eventStore'
 import { useCursorStore } from './cursorStore'
 import { createBatcher } from '../utils/batcher'
 
+// API base URL - in dev uses Vite proxy, in prod uses env var
+const API_BASE = import.meta.env.VITE_SERVER_URL || ''
+
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 
 interface SessionState {
@@ -46,7 +49,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     
     try {
       // Create session via REST API
-      const response = await fetch('/api/sessions', { method: 'POST' })
+      const response = await fetch(`${API_BASE}/api/sessions`, { method: 'POST' })
       const data = await response.json()
       
       if (!data.sessionId) {

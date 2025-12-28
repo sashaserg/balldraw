@@ -1,6 +1,9 @@
 import { io, Socket } from 'socket.io-client'
 import type { PaintEvent } from '../stores/eventStore'
 
+// Server URL - in dev uses Vite proxy ('/'), in prod uses env var
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || '/'
+
 // Event types for type safety
 export interface User {
   id: string
@@ -49,7 +52,7 @@ class SocketService {
       return this.socket
     }
     
-    this.socket = io('/', {
+    this.socket = io(SERVER_URL, {
       transports: ['websocket'],
       autoConnect: true,
       reconnection: true,
