@@ -176,6 +176,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 // Collects events for 16ms (1 frame) or until 50 events, then flushes
 const paintEventBatcher = createBatcher<PaintEvent>(
   (events) => {
+    console.log('[Session] Batcher flushing', events.length, 'events:', events.map(e => e.id))
     useEventStore.getState().addRemoteEvents(events)
     
     // Mark users as drawing
@@ -214,7 +215,16 @@ function setupSocketListeners() {
   socketService.onPaint((event) => {
     // Skip our own events - we already applied them locally (optimistic update)
     const currentUserId = useSessionStore.getState().currentUser?.id
+    
+    console.log('[Session] onPaint received:', {
+      eventId: event.id,
+      userId: event.userId,
+      isOwnEvent: event.userId === currentUserId,
+      position: event.position,
+    })
+    
     if (event.userId === currentUserId) {
+      console.log('[Session] Skipping own event')
       return
     }
     

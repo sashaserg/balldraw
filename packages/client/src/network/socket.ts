@@ -117,8 +117,12 @@ class SocketService {
   
   // Send a paint event
   sendPaint(event: Omit<PaintEvent, 'id' | 'timestamp' | 'userId'>): void {
-    if (!this.socket?.connected) return
+    if (!this.socket?.connected) {
+      console.warn('[Socket] sendPaint: not connected, dropping event')
+      return
+    }
     
+    console.log('[Socket] sendPaint:', { type: event.type, position: event.position })
     this.socket.emit('paint', event)
   }
   

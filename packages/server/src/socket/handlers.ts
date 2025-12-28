@@ -54,7 +54,10 @@ export function setupSocketHandlers(io: Server, sessionManager: SessionManager) 
     // Handle paint/erase events
     socket.on('paint', (data: Omit<PaintEvent, 'id' | 'timestamp' | 'userId'>) => {
       const sessionId = socketSessions.get(socket.id)
-      if (!sessionId) return
+      if (!sessionId) {
+        console.warn('[Server] paint: socket not in session', socket.id)
+        return
+      }
 
       const event = sessionManager.addEvent(sessionId, {
         ...data,
@@ -62,8 +65,16 @@ export function setupSocketHandlers(io: Server, sessionManager: SessionManager) 
       })
 
       if (event) {
+        console.log('[Server] paint:', {
+          eventId: event.id,
+          userId: event.userId,
+          sessionId,
+          position: event.position,
+        })
         // Broadcast to everyone in the session (including sender for confirmation)
         io.to(sessionId).emit('paint', event)
+      } else {
+        console.warn('[Server] paint: failed to add event', socket.id)
       }
     })
 
