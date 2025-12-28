@@ -33,7 +33,8 @@ interface CursorState {
 const CURSOR_TIMEOUT = 5000
 
 // How long after last paint event to consider user "not drawing"
-const DRAWING_TIMEOUT = 150
+// Increased to 500ms to prevent cursor blinking during painting
+const DRAWING_TIMEOUT = 500
 
 // Timers for clearing drawing state
 const drawingTimers = new Map<string, ReturnType<typeof setTimeout>>()

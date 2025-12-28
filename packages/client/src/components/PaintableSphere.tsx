@@ -233,7 +233,9 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
       }
       
       if (isInSession) {
-        // Send to server - it will broadcast back to us and others
+        // Optimistic: paint locally immediately for responsiveness
+        addEvent({ ...eventData, userId })
+        // Also send to server for persistence and broadcast to others
         socketService.sendPaint(eventData)
       } else {
         // Local mode - add directly to store
@@ -265,7 +267,9 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
       }
       
       if (isInSession) {
-        // Send to server
+        // Optimistic: paint locally immediately for responsiveness
+        addEvent({ ...eventData, userId })
+        // Also send to server for persistence and broadcast to others
         socketService.sendPaint(eventData)
       } else {
         // Local mode

@@ -212,6 +212,12 @@ function setupSocketListeners() {
   })
   
   socketService.onPaint((event) => {
+    // Skip our own events - we already applied them locally (optimistic update)
+    const currentUserId = useSessionStore.getState().currentUser?.id
+    if (event.userId === currentUserId) {
+      return
+    }
+    
     // Batch events for efficiency - reduces state updates when many users are painting
     paintEventBatcher.add(event)
   })
