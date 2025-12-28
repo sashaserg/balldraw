@@ -30,8 +30,8 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
   const lastUV = useRef<{ u: number; v: number } | null>(null)
   const lastEventTime = useRef<number>(0)
   
-  // Track which events we've already rendered
-  const lastRenderedEventId = useRef<string | null>(null)
+  // Track which events we've already rendered (by ID)
+  const renderedEventIds = useRef<Set<string>>(new Set())
   
   const { gl, camera, raycaster, pointer } = useThree()
   const { tool, brushColor, brushSize } = useToolStore()
@@ -159,43 +159,34 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
     ctx.fillStyle = BASE_COLOR
     ctx.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
     
-    // Render all events in order
+    // Render all events in order and track them
+    renderedEventIds.current.clear()
     for (const event of events) {
       renderEvent(event)
+      renderedEventIds.current.add(event.id)
     }
-    
-    lastRenderedEventId.current = events[events.length - 1]?.id ?? null
     
     if (texture) {
       texture.needsUpdate = true
     }
   }, [getAllEventsSorted, renderEvent, texture])
 
-  // Incremental render: only render new events since last render
+  // Incremental render: only render events not yet rendered
+  // This handles remote events that may be inserted in the middle (by timestamp)
   const incrementalRender = useCallback(() => {
     const events = perfMonitor.trackSort(() => getAllEventsSorted())
     
     if (events.length === 0) return
     
-    // Find where we left off
-    let startIndex = 0
-    if (lastRenderedEventId.current) {
-      const lastIndex = perfMonitor.trackFindIndex(events, e => e.id === lastRenderedEventId.current)
-      if (lastIndex !== -1) {
-        startIndex = lastIndex + 1
-      }
-    }
-    
-    // Render new events
-    const newEvents = events.slice(startIndex)
+    // Find events that haven't been rendered yet
+    const newEvents = events.filter(e => !renderedEventIds.current.has(e.id))
     if (newEvents.length === 0) return
     
     perfMonitor.trackRender(newEvents.length)
     for (const event of newEvents) {
       renderEvent(event)
+      renderedEventIds.current.add(event.id)
     }
-    
-    lastRenderedEventId.current = events[events.length - 1]?.id ?? null
     
     if (texture) {
       texture.needsUpdate = true
@@ -282,10 +273,9 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
 
   const handlePointerUp = useCallback(() => {
     if (isPainting.current) {
-      // Only commit locally if not in session (server handles it)
-      if (!isInSession) {
-        commitStroke()
-      }
+      // Always commit stroke locally to move from currentStroke to events
+      // This is needed for proper undo/redo tracking
+      commitStroke()
     }
     isPainting.current = false
     lastUV.current = null
@@ -320,7 +310,7 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
     
     ctx.fillStyle = BASE_COLOR
     ctx.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
-    lastRenderedEventId.current = null
+    renderedEventIds.current.clear()
     
     if (texture) {
       texture.needsUpdate = true
@@ -330,7 +320,7 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
   // Listen for replay signal (when joining session or clearing)
   useEffect(() => {
     const handleReplayNeeded = () => {
-      lastRenderedEventId.current = null
+      renderedEventIds.current.clear()
       clearCanvas()
     }
     
@@ -364,7 +354,7 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
         setTimeout(() => {
           ctx.fillStyle = BASE_COLOR
           ctx.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
-          lastRenderedEventId.current = null
+          renderedEventIds.current.clear()
           fullReplay()
         }, 100)
       }

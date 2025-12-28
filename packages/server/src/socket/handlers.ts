@@ -65,12 +65,6 @@ export function setupSocketHandlers(io: Server, sessionManager: SessionManager) 
       })
 
       if (event) {
-        console.log('[Server] paint:', {
-          eventId: event.id,
-          userId: event.userId,
-          sessionId,
-          position: event.position,
-        })
         // Broadcast to everyone in the session (including sender for confirmation)
         io.to(sessionId).emit('paint', event)
       } else {

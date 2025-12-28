@@ -122,7 +122,6 @@ class SocketService {
       return
     }
     
-    console.log('[Socket] sendPaint:', { type: event.type, position: event.position })
     this.socket.emit('paint', event)
   }
   
