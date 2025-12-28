@@ -1,65 +1,81 @@
 import { useToolStore, MIN_BRUSH_SIZE, MAX_BRUSH_SIZE } from '../stores/toolStore'
-// Hidden: undo/redo
-// import { useEventStore } from '../stores/eventStore'
-// import { useSessionStore } from '../stores/sessionStore'
+import { useEventStore } from '../stores/eventStore'
+import { useSessionStore } from '../stores/sessionStore'
+import { socketService } from '../network/socket'
 
 export function Toolbar() {
   const { tool, brushColor, brushSize, colors, setBrushColor, setBrushSize } = useToolStore()
-  // Hidden: undo/redo and rotation mode toggle
-  // const { undo, redo, canUndo, canRedo } = useEventStore()
-  // const { rotationMode, toggleRotationMode } = useToolStore()
-  // const { currentUser } = useSessionStore()
-  // const userId = currentUser?.id ?? 'local-user'
+  const { undo, redo, canUndo, canRedo, getUndoableStrokeId, getRedoableStrokeId } = useEventStore()
+  const { currentUser, isInSession } = useSessionStore()
+  
+  const userId = currentUser?.id ?? 'local-user'
+  const canUndoNow = canUndo(userId)
+  const canRedoNow = canRedo(userId)
 
-  /* Hidden: undo/redo handlers - revisiting later
   const handleUndo = () => {
-    if (canUndoNow && !isInSession) {
-      undo(userId)
+    if (!canUndoNow) return
+    
+    // Get the strokeId before calling undo (so we can send to server)
+    const strokeId = getUndoableStrokeId(userId)
+    if (!strokeId) return
+    
+    // Apply locally (optimistic)
+    undo(userId)
+    
+    // Send to server if in session
+    if (isInSession) {
+      socketService.sendUndo(strokeId)
     }
   }
   
   const handleRedo = () => {
-    if (canRedoNow && !isInSession) {
-      redo(userId)
+    if (!canRedoNow) return
+    
+    // Get the strokeId before calling redo
+    const strokeId = getRedoableStrokeId(userId)
+    if (!strokeId) return
+    
+    // Apply locally (optimistic)
+    redo(userId)
+    
+    // Send to server if in session
+    if (isInSession) {
+      socketService.sendRedo(strokeId)
     }
   }
-  */
 
   return (
     <div style={styles.container}>
-      {/* Undo/Redo buttons - hidden for now, revisiting later
-      {!isInSession && (
-        <div style={styles.section}>
-          <div style={styles.label}>History</div>
-          <div style={styles.historyRow}>
-            <button
-              onClick={handleUndo}
-              disabled={!canUndoNow}
-              style={{
-                ...styles.historyButton,
-                opacity: canUndoNow ? 1 : 0.4,
-                cursor: canUndoNow ? 'pointer' : 'not-allowed',
-              }}
-              title="Undo (Ctrl+Z)"
-            >
-              ↩️
-            </button>
-            <button
-              onClick={handleRedo}
-              disabled={!canRedoNow}
-              style={{
-                ...styles.historyButton,
-                opacity: canRedoNow ? 1 : 0.4,
-                cursor: canRedoNow ? 'pointer' : 'not-allowed',
-              }}
-              title="Redo (Ctrl+Y)"
-            >
-              ↪️
-            </button>
-          </div>
+      {/* Undo/Redo buttons */}
+      <div style={styles.section}>
+        <div style={styles.label}>History</div>
+        <div style={styles.historyRow}>
+          <button
+            onClick={handleUndo}
+            disabled={!canUndoNow}
+            style={{
+              ...styles.historyButton,
+              opacity: canUndoNow ? 1 : 0.4,
+              cursor: canUndoNow ? 'pointer' : 'not-allowed',
+            }}
+            title="Undo (Ctrl+Z)"
+          >
+            ↩️
+          </button>
+          <button
+            onClick={handleRedo}
+            disabled={!canRedoNow}
+            style={{
+              ...styles.historyButton,
+              opacity: canRedoNow ? 1 : 0.4,
+              cursor: canRedoNow ? 'pointer' : 'not-allowed',
+            }}
+            title="Redo (Ctrl+Y)"
+          >
+            ↪️
+          </button>
         </div>
-      )}
-      */}
+      </div>
       
       {/* Tool indicator */}
       <div style={styles.section}>

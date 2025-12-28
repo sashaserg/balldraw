@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { socketService, type User } from '../network/socket'
-import { useEventStore, type PaintEvent } from './eventStore'
+import { useEventStore, type DrawEvent, isPaintEvent } from './eventStore'
 import { useCursorStore } from './cursorStore'
 import { createBatcher } from '../utils/batcher'
 
@@ -67,15 +67,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         // First restore them locally so the canvas isn't blank
         useEventStore.getState().addRemoteEvents(existingEvents)
         
-        // Then send to server so others can see them
+        // Then send paint events to server so others can see them
+        // (only paint events, not undo/redo - those are session-specific)
         for (const event of existingEvents) {
-          socketService.sendPaint({
-            type: event.type,
-            position: event.position,
-            fromPosition: event.fromPosition,
-            color: event.color,
-            brushSize: event.brushSize,
-          })
+          if (isPaintEvent(event)) {
+            socketService.sendPaint({
+              type: event.type,
+              position: event.position,
+              fromPosition: event.fromPosition,
+              color: event.color,
+              brushSize: event.brushSize,
+              strokeId: event.strokeId,
+            })
+          }
         }
       }
       
@@ -172,14 +176,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 }))
 
-// Batch incoming paint events to reduce state updates
+// Batch incoming draw events to reduce state updates
 // Collects events for 16ms (1 frame) or until 50 events, then flushes
-const paintEventBatcher = createBatcher<PaintEvent>(
+const drawEventBatcher = createBatcher<DrawEvent>(
   (events) => {
     useEventStore.getState().addRemoteEvents(events)
     
-    // Mark users as drawing
-    const userIds = new Set(events.map(e => e.userId))
+    // Mark users as drawing (only for paint events)
+    const userIds = new Set(events.filter(isPaintEvent).map(e => e.userId))
     userIds.forEach(userId => {
       useCursorStore.getState().setUserDrawing(userId, true)
     })
@@ -211,7 +215,7 @@ function setupSocketListeners() {
     }
   })
   
-  socketService.onPaint((event) => {
+  socketService.onDrawEvent((event) => {
     // Skip our own events - we already applied them locally (optimistic update)
     const currentUserId = useSessionStore.getState().currentUser?.id
     
@@ -220,7 +224,7 @@ function setupSocketListeners() {
     }
     
     // Batch events for efficiency - reduces state updates when many users are painting
-    paintEventBatcher.add(event)
+    drawEventBatcher.add(event)
   })
   
   // Handle reconnection - re-join the session when socket reconnects

@@ -59,16 +59,44 @@ export function setupSocketHandlers(io: Server, sessionManager: SessionManager) 
         return
       }
 
-      const event = sessionManager.addEvent(sessionId, {
+      const event = sessionManager.addPaintEvent(sessionId, {
         ...data,
         userId: socket.id,
       })
 
       if (event) {
         // Broadcast to everyone in the session (including sender for confirmation)
-        io.to(sessionId).emit('paint', event)
+        io.to(sessionId).emit('draw_event', event)
       } else {
         console.warn('[Server] paint: failed to add event', socket.id)
+      }
+    })
+
+    // Handle undo
+    socket.on('undo', (data: { strokeId: string }) => {
+      const sessionId = socketSessions.get(socket.id)
+      if (!sessionId) {
+        console.warn('[Server] undo: socket not in session', socket.id)
+        return
+      }
+
+      const event = sessionManager.addUndoEvent(sessionId, socket.id, data.strokeId)
+      if (event) {
+        io.to(sessionId).emit('draw_event', event)
+      }
+    })
+
+    // Handle redo
+    socket.on('redo', (data: { strokeId: string }) => {
+      const sessionId = socketSessions.get(socket.id)
+      if (!sessionId) {
+        console.warn('[Server] redo: socket not in session', socket.id)
+        return
+      }
+
+      const event = sessionManager.addRedoEvent(sessionId, socket.id, data.strokeId)
+      if (event) {
+        io.to(sessionId).emit('draw_event', event)
       }
     })
 

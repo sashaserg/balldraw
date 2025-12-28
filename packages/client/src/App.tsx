@@ -13,7 +13,6 @@ import { socketService } from './network/socket'
 const CURSOR_THROTTLE_MS = 50
 
 export default function App() {
-  const { undo, redo, canUndo, canRedo } = useEventStore()
   const { currentUser, isInSession } = useSessionStore()
   const canvasContainerRef = useRef<HTMLDivElement>(null)
   const lastCursorTime = useRef<number>(0)
@@ -21,31 +20,38 @@ export default function App() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't handle shortcuts when in session (undo is local only)
-      if (isInSession) return
-      
       const userId = currentUser?.id ?? 'local-user'
       
       // Ctrl+Z or Cmd+Z for undo
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault()
-        if (canUndo(userId)) {
+        const { getUndoableStrokeId, undo } = useEventStore.getState()
+        const strokeId = getUndoableStrokeId(userId)
+        if (strokeId) {
           undo(userId)
+          if (isInSession) {
+            socketService.sendUndo(strokeId)
+          }
         }
       }
       
       // Ctrl+Y or Cmd+Shift+Z for redo
       if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
         e.preventDefault()
-        if (canRedo()) {
+        const { getRedoableStrokeId, redo } = useEventStore.getState()
+        const strokeId = getRedoableStrokeId(userId)
+        if (strokeId) {
           redo(userId)
+          if (isInSession) {
+            socketService.sendRedo(strokeId)
+          }
         }
       }
     }
     
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [undo, redo, canUndo, canRedo, isInSession, currentUser])
+  }, [isInSession, currentUser])
 
   // Track mouse position and send cursor updates when in session
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {

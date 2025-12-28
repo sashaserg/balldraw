@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid'
-import type { Session, User, PaintEvent } from './types.js'
+import type { Session, User, PaintEvent, UndoEvent, RedoEvent, DrawEvent } from './types.js'
 
 // Pre-defined colors for users (up to 4)
 const USER_COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4']
@@ -73,7 +73,7 @@ export class SessionManager {
     return user ?? null
   }
 
-  addEvent(sessionId: string, event: Omit<PaintEvent, 'id' | 'timestamp'>): PaintEvent | null {
+  addPaintEvent(sessionId: string, event: Omit<PaintEvent, 'id' | 'timestamp'>): PaintEvent | null {
     const session = this.sessions.get(sessionId)
     if (!session) return null
 
@@ -87,7 +87,39 @@ export class SessionManager {
     return fullEvent
   }
 
-  getEvents(sessionId: string): PaintEvent[] {
+  addUndoEvent(sessionId: string, userId: string, strokeId: string): UndoEvent | null {
+    const session = this.sessions.get(sessionId)
+    if (!session) return null
+
+    const undoEvent: UndoEvent = {
+      id: nanoid(12),
+      type: 'undo',
+      userId,
+      timestamp: Date.now(),
+      strokeId,
+    }
+
+    session.eventLog.push(undoEvent)
+    return undoEvent
+  }
+
+  addRedoEvent(sessionId: string, userId: string, strokeId: string): RedoEvent | null {
+    const session = this.sessions.get(sessionId)
+    if (!session) return null
+
+    const redoEvent: RedoEvent = {
+      id: nanoid(12),
+      type: 'redo',
+      userId,
+      timestamp: Date.now(),
+      strokeId,
+    }
+
+    session.eventLog.push(redoEvent)
+    return redoEvent
+  }
+
+  getEvents(sessionId: string): DrawEvent[] {
     return this.sessions.get(sessionId)?.eventLog ?? []
   }
 

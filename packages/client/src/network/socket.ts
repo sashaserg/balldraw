@@ -1,5 +1,5 @@
 import { io, Socket } from 'socket.io-client'
-import type { PaintEvent } from '../stores/eventStore'
+import type { PaintEvent, DrawEvent } from '../stores/eventStore'
 
 // Server URL - in dev uses Vite proxy ('/'), in prod uses env var
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || '/'
@@ -16,7 +16,7 @@ export type JoinSessionResponse = {
   success: true
   user: User
   users: User[]
-  eventLog: PaintEvent[]
+  eventLog: DrawEvent[]
 } | {
   error: 'SESSION_NOT_FOUND' | 'SESSION_FULL' | 'FAILED_TO_JOIN'
 }
@@ -24,7 +24,7 @@ export type JoinSessionResponse = {
 export interface ServerToClientEvents {
   user_joined: (data: { user: User }) => void
   user_left: (data: { userId: string; user: User }) => void
-  paint: (event: PaintEvent) => void
+  draw_event: (event: DrawEvent) => void
   cursor_move: (data: { userId: string; position: { x: number; y: number } | null }) => void
 }
 
@@ -34,6 +34,8 @@ export interface ClientToServerEvents {
     callback: (response: JoinSessionResponse) => void
   ) => void
   paint: (data: Omit<PaintEvent, 'id' | 'timestamp' | 'userId'>) => void
+  undo: (data: { strokeId: string }) => void
+  redo: (data: { strokeId: string }) => void
   cursor_move: (position: { x: number; y: number } | null) => void
 }
 
@@ -125,17 +127,35 @@ class SocketService {
     this.socket.emit('paint', event)
   }
   
+  // Send undo
+  sendUndo(strokeId: string): void {
+    if (!this.socket?.connected) {
+      console.warn('[Socket] sendUndo: not connected')
+      return
+    }
+    this.socket.emit('undo', { strokeId })
+  }
+  
+  // Send redo
+  sendRedo(strokeId: string): void {
+    if (!this.socket?.connected) {
+      console.warn('[Socket] sendRedo: not connected')
+      return
+    }
+    this.socket.emit('redo', { strokeId })
+  }
+  
   // Send cursor position (2D normalized screen coordinates)
   sendCursor(position: { x: number; y: number } | null): void {
     if (!this.socket?.connected) return
     this.socket.emit('cursor_move', position)
   }
   
-  // Subscribe to paint events
-  onPaint(callback: (event: PaintEvent) => void): () => void {
+  // Subscribe to draw events (paint, undo, redo)
+  onDrawEvent(callback: (event: DrawEvent) => void): () => void {
     const socket = this.connect()
-    socket.on('paint', callback)
-    return () => socket.off('paint', callback)
+    socket.on('draw_event', callback)
+    return () => socket.off('draw_event', callback)
   }
   
   // Subscribe to user events

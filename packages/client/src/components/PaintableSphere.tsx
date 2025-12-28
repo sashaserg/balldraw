@@ -36,7 +36,7 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
   
   const { gl, camera, raycaster, pointer } = useThree()
   const { tool, brushColor, brushSize } = useToolStore()
-  const { addEvent, commitStroke, getAllEventsSorted } = useEventStore()
+  const { addEvent, commitStroke, getVisiblePaintEvents } = useEventStore()
   const { isInSession, currentUser } = useSessionStore()
   
   // Get userId - from session if connected, otherwise local
@@ -87,18 +87,20 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
     sphereRoundBrush.render(event, brushConfig)
   }, [])
 
-  // Full replay: clear canvas and render all events
+  // Full replay: clear canvas and render all visible events
+  // Called when visibility changes (undo/redo) or on initial load
   const fullReplay = useCallback(() => {
     const ctx = ctxRef.current
     if (!ctx) return
     
-    const events = getAllEventsSorted()
+    // Get only visible paint events (respects undo/redo state)
+    const events = useEventStore.getState().getVisiblePaintEvents()
     
     // Clear to base color
     ctx.fillStyle = BASE_COLOR
     ctx.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
     
-    // Render all events in order and track them
+    // Render all visible events in order and track them
     renderedEventIds.current.clear()
     for (const event of events) {
       renderEvent(event)
@@ -108,12 +110,12 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
     if (texture) {
       texture.needsUpdate = true
     }
-  }, [getAllEventsSorted, renderEvent, texture])
+  }, [renderEvent, texture])
 
-  // Incremental render: only render events not yet rendered
+  // Incremental render: only render visible events not yet rendered
   // This handles remote events that may be inserted in the middle (by timestamp)
   const incrementalRender = useCallback(() => {
-    const events = perfMonitor.trackSort(() => getAllEventsSorted())
+    const events = perfMonitor.trackSort(() => getVisiblePaintEvents())
     
     if (events.length === 0) return
     
@@ -130,7 +132,7 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
     if (texture) {
       texture.needsUpdate = true
     }
-  }, [getAllEventsSorted, renderEvent, texture])
+  }, [getVisiblePaintEvents, renderEvent, texture])
 
   // Get UV from mouse position using raycasting
   const getUVFromPointer = useCallback((): { u: number; v: number } | null => {
@@ -160,16 +162,22 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
         position: uv,
         color: brushColor,
         brushSize,
+        userId,
       }
       
+      // Create the event locally (gets assigned strokeId)
+      const event = addEvent(eventData)
+      
       if (isInSession) {
-        // Optimistic: paint locally immediately for responsiveness
-        addEvent({ ...eventData, userId })
-        // Also send to server for persistence and broadcast to others
-        socketService.sendPaint(eventData)
-      } else {
-        // Local mode - add directly to store
-        addEvent({ ...eventData, userId })
+        // Send to server for persistence and broadcast
+        // Include strokeId so server uses the same one
+        socketService.sendPaint({
+          type: event.type,
+          position: event.position,
+          color: event.color,
+          brushSize: event.brushSize,
+          strokeId: event.strokeId,
+        })
       }
       
       lastUV.current = uv
@@ -194,16 +202,22 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
         fromPosition: lastUV.current ?? undefined,
         color: brushColor,
         brushSize,
+        userId,
       }
       
+      // Create the event locally (uses same strokeId as the stroke in progress)
+      const event = addEvent(eventData)
+      
       if (isInSession) {
-        // Optimistic: paint locally immediately for responsiveness
-        addEvent({ ...eventData, userId })
-        // Also send to server for persistence and broadcast to others
-        socketService.sendPaint(eventData)
-      } else {
-        // Local mode
-        addEvent({ ...eventData, userId })
+        // Send to server for persistence and broadcast
+        socketService.sendPaint({
+          type: event.type,
+          position: event.position,
+          fromPosition: event.fromPosition,
+          color: event.color,
+          brushSize: event.brushSize,
+          strokeId: event.strokeId,
+        })
       }
       
       lastUV.current = uv
@@ -279,7 +293,7 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
     window.__drawball = {
       fullReplay,
       clearCanvas,
-      getEvents: getAllEventsSorted,
+      getEvents: getVisiblePaintEvents,
       replayWithFlash: () => {
         const ctx = ctxRef.current
         if (!ctx || !texture) return
@@ -298,7 +312,7 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
         }, 100)
       }
     }
-  }, [fullReplay, clearCanvas, getAllEventsSorted, texture])
+  }, [fullReplay, clearCanvas, getVisiblePaintEvents, texture])
 
   if (!texture) return null
 
