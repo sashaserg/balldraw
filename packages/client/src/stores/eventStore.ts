@@ -142,9 +142,6 @@ interface EventState {
   // Get visibility set (cached)
   getVisibility: () => Set<string>
   
-  // Invalidate cache (called internally when events change)
-  _invalidateCache: () => void
-  
   // Signal that visibility changed (for full replay)
   _signalVisibilityChange: () => void
 }
@@ -168,12 +165,6 @@ export const useEventStore = create<EventState>((set, get) => ({
   _cachedVisibility: null,
   _cacheVersion: 0,
   
-  _invalidateCache: () => {
-    sortedEventsCache = null
-    visibilityCache = null
-    redoStacksCache = null
-  },
-  
   _signalVisibilityChange: () => {
     window.dispatchEvent(new CustomEvent('drawball:needsReplay'))
   },
@@ -193,6 +184,7 @@ export const useEventStore = create<EventState>((set, get) => ({
     
     sortedEventsCache = null // Invalidate cache
     visibilityCache = null
+    redoStacksCache = null
     
     set({
       currentStroke: [...state.currentStroke, event],
@@ -209,6 +201,7 @@ export const useEventStore = create<EventState>((set, get) => ({
     
     sortedEventsCache = null
     visibilityCache = null
+    redoStacksCache = null
     
     set({
       events: [...events, ...currentStroke],
@@ -254,6 +247,7 @@ export const useEventStore = create<EventState>((set, get) => ({
     
     sortedEventsCache = null
     visibilityCache = null
+    redoStacksCache = null
     
     set((state) => ({
       events: [...state.events, undoEvent],
@@ -279,6 +273,7 @@ export const useEventStore = create<EventState>((set, get) => ({
     
     sortedEventsCache = null
     visibilityCache = null
+    redoStacksCache = null
     
     set((state) => ({
       events: [...state.events, redoEvent],
@@ -301,6 +296,7 @@ export const useEventStore = create<EventState>((set, get) => ({
   clearEvents: () => {
     sortedEventsCache = null
     visibilityCache = null
+    redoStacksCache = null
     
     set({
       events: [],
@@ -320,6 +316,7 @@ export const useEventStore = create<EventState>((set, get) => ({
     
     sortedEventsCache = null
     visibilityCache = null
+    redoStacksCache = null
     
     // If it's an undo/redo event, we need to trigger a full replay
     const needsReplay = event.type === 'undo' || event.type === 'redo'
@@ -344,10 +341,18 @@ export const useEventStore = create<EventState>((set, get) => ({
     
     sortedEventsCache = null
     visibilityCache = null
+    redoStacksCache = null
+    
+    // Check if any of the new events are undo/redo (need replay)
+    const needsReplay = newEvents.some(e => e.type === 'undo' || e.type === 'redo')
     
     set({
       events: [...events, ...newEvents].sort((a, b) => a.timestamp - b.timestamp),
     })
+    
+    if (needsReplay) {
+      get()._signalVisibilityChange()
+    }
   },
   
   getAllEventsSorted: () => {
