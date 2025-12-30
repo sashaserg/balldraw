@@ -4,6 +4,7 @@ import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { PaintableSphere } from './PaintableSphere'
 import { useToolStore } from '../stores/toolStore'
+import { useProjectStore } from '../stores/projectStore'
 import { useArcballRotation } from '../hooks/useArcballRotation'
 
 export function Scene() {
@@ -11,9 +12,29 @@ export function Scene() {
   const { gl } = useThree()
   const toggleTool = useToolStore((state) => state.toggleTool)
   const rotationMode = useToolStore((state) => state.rotationMode)
+  const setCaptureSnapshot = useProjectStore((state) => state.setCaptureSnapshot)
   
   // Ball rotation state (quaternion for smooth rotation)
   const [ballRotation, setBallRotation] = useState(() => new THREE.Quaternion())
+  
+  // Register snapshot capture function
+  useEffect(() => {
+    const captureSnapshot = () => {
+      try {
+        // Force a render to ensure we have the latest state
+        return gl.domElement.toDataURL('image/png')
+      } catch (error) {
+        console.error('[Scene] Failed to capture snapshot:', error)
+        return null
+      }
+    }
+    
+    setCaptureSnapshot(captureSnapshot)
+    
+    return () => {
+      setCaptureSnapshot(null)
+    }
+  }, [gl, setCaptureSnapshot])
 
   // Use arcball rotation for natural "grab and spin" feel
   useArcballRotation({
