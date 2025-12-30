@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import * as projectStorage from '../lib/projectStorage'
 import type { ProjectMeta, Project } from '../lib/projectStorage'
-import { useEventStore } from './eventStore'
+import { useEventStore, isPaintEvent, computeVisibility } from './eventStore'
 
 // ============================================================================
 // PROJECT STATE - Manages projects and current project context
@@ -99,10 +99,16 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       }
       
       // Load events into event store
+      // Mark them as "historical" by prefixing userId so they can't be undone
       const eventStore = useEventStore.getState()
       eventStore.clearEvents()
+      
       if (project.events.length > 0) {
-        eventStore.addRemoteEvents(project.events)
+        const historicalEvents = project.events.map(e => ({
+          ...e,
+          userId: `history:${e.userId}`,
+        }))
+        eventStore.addRemoteEvents(historicalEvents)
       }
       
       set({
@@ -160,15 +166,28 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ isSaving: true })
     
     try {
-      const events = useEventStore.getState().events
+      const allEvents = useEventStore.getState().events
       const now = Date.now()
+      
+      // Bake in visibility - only save visible paint events
+      // This discards undo/redo history and compacts storage
+      const visibility = computeVisibility(allEvents)
+      const eventsToSave = allEvents.filter(
+        e => isPaintEvent(e) && visibility.has(e.strokeId)
+      )
+      
+      // Skip saving if no visible strokes (empty project)
+      if (eventsToSave.length === 0) {
+        set({ isSaving: false })
+        return
+      }
       
       // Capture thumbnail from current render
       const thumbnail = _captureSnapshot ? _captureSnapshot() : null
       
       await projectStorage.saveProject({
         ...currentProject,
-        events,
+        events: eventsToSave,
         updatedAt: now,
         thumbnail: thumbnail ?? currentProject.thumbnail,
         thumbnailUpdatedAt: thumbnail ? now : currentProject.thumbnailUpdatedAt,
@@ -179,7 +198,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         currentProject: state.currentProject
           ? { 
               ...state.currentProject, 
-              events, 
+              events: eventsToSave, 
               updatedAt: now,
               thumbnail: thumbnail ?? state.currentProject.thumbnail,
               thumbnailUpdatedAt: thumbnail ? now : state.currentProject.thumbnailUpdatedAt,

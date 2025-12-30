@@ -43,7 +43,7 @@ export function SessionPanel() {
   }
   
   const copyLink = () => {
-    const url = `${window.location.origin}?session=${sessionId}`
+    const url = `${window.location.origin}/join/${sessionId}`
     navigator.clipboard.writeText(url)
   }
   
