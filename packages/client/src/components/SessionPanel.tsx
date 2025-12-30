@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSessionStore } from '../stores/sessionStore'
+import { useSearchParams } from 'react-router-dom'
 
 export function SessionPanel() {
   const { 
@@ -14,31 +15,37 @@ export function SessionPanel() {
     leaveSession 
   } = useSessionStore()
   
-  const [userName, setUserName] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [userName, setUserName] = useState(() => {
+    return localStorage.getItem('drawball_username') || ''
+  })
   const [joinId, setJoinId] = useState('')
   const [showJoinForm, setShowJoinForm] = useState(false)
   
-  // Check for session ID in URL on mount
+  // Update URL when session changes
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const sessionFromUrl = params.get('session')
-    
-    if (sessionFromUrl && !isInSession) {
-      setJoinId(sessionFromUrl)
-      setShowJoinForm(true)
-      
-      // Clean up URL without reloading
-      window.history.replaceState({}, '', window.location.pathname)
+    if (isInSession && sessionId) {
+      // Add session to URL
+      searchParams.set('session', sessionId)
+      setSearchParams(searchParams, { replace: true })
+    } else if (!isInSession && searchParams.has('session')) {
+      // Remove session from URL when leaving
+      searchParams.delete('session')
+      setSearchParams(searchParams, { replace: true })
     }
-  }, [isInSession])
+  }, [isInSession, sessionId, searchParams, setSearchParams])
   
   const handleCreate = async () => {
     if (!userName.trim()) return
+    // Save username for future use
+    localStorage.setItem('drawball_username', userName.trim())
     await createSession(userName.trim())
   }
   
   const handleJoin = async () => {
     if (!userName.trim() || !joinId.trim()) return
+    // Save username for future use
+    localStorage.setItem('drawball_username', userName.trim())
     await joinSession(joinId.trim(), userName.trim())
   }
   

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Canvas } from '@react-three/fiber'
 import { Scene } from './Scene'
 import { Toolbar } from './Toolbar'
@@ -19,16 +19,38 @@ const AUTO_SAVE_DELAY_MS = 2000
 
 export function PaintingView() {
   const { projectId } = useParams<{ projectId: string }>()
+  const [searchParams] = useSearchParams()
+  const sessionIdFromUrl = searchParams.get('session')
   const navigate = useNavigate()
-  const { currentUser, isInSession } = useSessionStore()
-  const { currentProject, openProject, isLoading, saveCurrentProject, isHost } = useProjectStore()
+  const { currentUser, isInSession, sessionId: currentSessionId, joinSession } = useSessionStore()
+  const { currentProject, openProject, isLoading, saveCurrentProject } = useProjectStore()
   const canvasContainerRef = useRef<HTMLDivElement>(null)
   const lastCursorTime = useRef<number>(0)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hasTriedAutoJoin = useRef(false)
   
-  // Auto-save when events change (debounced)
+  // Auto-join session if ?session= is in URL
   useEffect(() => {
-    if (!currentProject || !isHost) return
+    if (!sessionIdFromUrl || !currentProject || hasTriedAutoJoin.current) return
+    
+    // Already in this session
+    if (isInSession && currentSessionId === sessionIdFromUrl) return
+    
+    // Try to rejoin session
+    hasTriedAutoJoin.current = true
+    const storedName = localStorage.getItem('drawball_username')
+    
+    if (storedName) {
+      joinSession(sessionIdFromUrl, storedName).catch(() => {
+        // Session might not exist anymore, that's ok - continue in solo mode
+        console.log('Could not rejoin session, continuing in solo mode')
+      })
+    }
+  }, [sessionIdFromUrl, currentProject, isInSession, currentSessionId, joinSession])
+  
+  // Auto-save when events change (debounced) - everyone saves now
+  useEffect(() => {
+    if (!currentProject) return
     
     // Subscribe to event store changes
     const unsubscribe = useEventStore.subscribe((state, prevState) => {
@@ -52,7 +74,7 @@ export function PaintingView() {
         clearTimeout(saveTimeoutRef.current)
       }
     }
-  }, [currentProject, isHost, saveCurrentProject])
+  }, [currentProject, saveCurrentProject])
   
   // Load project on mount
   useEffect(() => {

@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { socketService, type User } from '../network/socket'
 import { useEventStore, type DrawEvent, isPaintEvent } from './eventStore'
-import { useProjectStore } from './projectStore'
 import { useCursorStore } from './cursorStore'
 import { createBatcher } from '../utils/batcher'
 
@@ -63,9 +62,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // Join the session (this will clear events, but we'll restore them)
       const success = await get()._joinSessionInternal(data.sessionId, userName, true)
       
-      // Host creates the session, so they remain the host
-      useProjectStore.getState().setIsHost(true)
-      
       // After joining, restore and upload pre-existing local events
       if (success && existingEvents.length > 0) {
         // First restore them locally so the canvas isn't blank
@@ -99,8 +95,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
   
   joinSession: async (sessionId: string, userName: string) => {
-    // Joining someone else's session - not the host
-    useProjectStore.getState().setIsHost(false)
     return get()._joinSessionInternal(sessionId, userName, false)
   },
   

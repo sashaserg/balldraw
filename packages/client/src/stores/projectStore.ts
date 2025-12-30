@@ -15,10 +15,6 @@ interface ProjectState {
   // Currently open project
   currentProject: Project | null
   
-  // Whether current user is the host (owns the project)
-  // When joining someone's session, this is false
-  isHost: boolean
-  
   // Loading states
   isLoading: boolean
   isSaving: boolean
@@ -37,9 +33,6 @@ interface ProjectState {
   // Save current project (debounced externally)
   saveCurrentProject: () => Promise<void>
   
-  // Host management
-  setIsHost: (isHost: boolean) => void
-  
   // Snapshot registration (called by Scene)
   setCaptureSnapshot: (fn: (() => string | null) | null) => void
 }
@@ -47,7 +40,6 @@ interface ProjectState {
 export const useProjectStore = create<ProjectState>((set, get) => ({
   projects: [],
   currentProject: null,
-  isHost: true,
   isLoading: false,
   isSaving: false,
   _captureSnapshot: null,
@@ -113,7 +105,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       
       set({
         currentProject: project,
-        isHost: true,
         isLoading: false,
       })
       
@@ -129,7 +120,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     useEventStore.getState().clearEvents()
     set({
       currentProject: null,
-      isHost: true,
     })
   },
   
@@ -158,10 +148,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
   
   saveCurrentProject: async () => {
-    const { currentProject, isHost, _captureSnapshot } = get()
+    const { currentProject, _captureSnapshot } = get()
     
-    // Only save if we're the host and have a project open
-    if (!currentProject || !isHost) return
+    // Only save if we have a project open
+    if (!currentProject) return
     
     set({ isSaving: true })
     
@@ -210,9 +200,5 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       console.error('[ProjectStore] Failed to save project:', error)
       set({ isSaving: false })
     }
-  },
-  
-  setIsHost: (isHost: boolean) => {
-    set({ isHost })
   },
 }))

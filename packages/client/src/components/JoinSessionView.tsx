@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useSessionStore } from '../stores/sessionStore'
 import { useProjectStore } from '../stores/projectStore'
@@ -6,18 +6,10 @@ import { useProjectStore } from '../stores/projectStore'
 export function JoinSessionView() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const navigate = useNavigate()
-  const { joinSession, status, error, isInSession } = useSessionStore()
-  const { setIsHost } = useProjectStore()
+  const { joinSession, status, error } = useSessionStore()
+  const { createProject } = useProjectStore()
   const [userName, setUserName] = useState('')
   const [isJoining, setIsJoining] = useState(false)
-
-  // Redirect to painting view once joined
-  useEffect(() => {
-    if (isInSession && sessionId) {
-      // Navigate to a special "session" route that doesn't require a project
-      navigate(`/session/${sessionId}`)
-    }
-  }, [isInSession, sessionId, navigate])
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -25,14 +17,24 @@ export function JoinSessionView() {
     if (!sessionId || !userName.trim()) return
     
     setIsJoining(true)
-    setIsHost(false) // Joiner is not the host
     
+    // Create a local project for this joiner
+    const project = await createProject()
+    
+    // Rename it to indicate it's from a session
+    await useProjectStore.getState().renameProject(project.id, `Session with others`)
+    
+    // Join the session
     const success = await joinSession(sessionId, userName.trim())
     
-    if (!success) {
+    if (success) {
+      // Navigate to painting view with session param
+      navigate(`/${project.id}?session=${sessionId}`)
+    } else {
+      // Failed to join - delete the created project
+      await useProjectStore.getState().deleteProject(project.id)
       setIsJoining(false)
     }
-    // If successful, the useEffect above will handle navigation
   }
 
   if (!sessionId) {
