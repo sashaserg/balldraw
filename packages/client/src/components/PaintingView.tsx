@@ -6,9 +6,11 @@ import { Toolbar } from './Toolbar'
 import { DebugPanel } from './DebugPanel'
 import { SessionPanel } from './SessionPanel'
 import { RemoteCursors } from './RemoteCursors'
+import { BrushCursor } from './BrushCursor'
 import { useEventStore } from '../stores/eventStore'
 import { useSessionStore } from '../stores/sessionStore'
 import { useProjectStore } from '../stores/projectStore'
+import { DEFAULT_CAMERA_DISTANCE } from '../stores/toolStore'
 import { socketService } from '../network/socket'
 
 // Throttle for cursor updates (50ms = ~20 updates/sec)
@@ -196,12 +198,12 @@ export function PaintingView() {
       {/* Canvas container with cursor tracking */}
       <div
         ref={canvasContainerRef}
-        style={{ position: 'absolute', inset: 0 }}
+        style={{ position: 'absolute', inset: 0, cursor: 'none' }}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       >
         <Canvas
-          camera={{ position: [0, 0, 3], fov: 50 }}
+          camera={{ position: [0, 0, DEFAULT_CAMERA_DISTANCE], fov: 50 }}
           gl={{ preserveDrawingBuffer: true }}
           onContextMenu={(e) => e.preventDefault()}
         >
@@ -215,6 +217,9 @@ export function PaintingView() {
           </div>
         )}
       </div>
+      
+      {/* Brush size cursor indicator */}
+      <BrushCursor containerRef={canvasContainerRef} />
       
       <SessionPanel />
       <Toolbar />

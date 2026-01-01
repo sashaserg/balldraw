@@ -7,11 +7,17 @@ export type RotationMode = 'camera' | 'ball'
 export const MIN_BRUSH_SIZE = 5
 export const MAX_BRUSH_SIZE = 120
 
+// Camera distance range (from OrbitControls)
+export const DEFAULT_CAMERA_DISTANCE = 3
+export const MIN_CAMERA_DISTANCE = 2
+export const MAX_CAMERA_DISTANCE = 6
+
 export interface ToolState {
   tool: Tool
   brushColor: string
   brushSize: number
   rotationMode: RotationMode
+  cameraDistance: number  // Current camera distance from sphere center
   // Available options
   colors: string[]
   // Actions
@@ -21,6 +27,7 @@ export interface ToolState {
   setBrushSize: (size: number) => void
   setRotationMode: (mode: RotationMode) => void
   toggleRotationMode: () => void
+  setCameraDistance: (distance: number) => void
 }
 
 export const useToolStore = create<ToolState>((set) => ({
@@ -28,6 +35,7 @@ export const useToolStore = create<ToolState>((set) => ({
   brushColor: '#e74c3c', // Red
   brushSize: 20,
   rotationMode: 'camera', // Default to camera rotation (ball rotation available but hidden)
+  cameraDistance: DEFAULT_CAMERA_DISTANCE,
   
   colors: [
     '#e74c3c', // Red
@@ -52,4 +60,5 @@ export const useToolStore = create<ToolState>((set) => ({
   toggleRotationMode: () => set((state) => ({
     rotationMode: state.rotationMode === 'camera' ? 'ball' : 'camera'
   })),
+  setCameraDistance: (cameraDistance) => set({ cameraDistance }),
 }))

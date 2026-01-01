@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback, useState } from 'react'
-import { useThree } from '@react-three/fiber'
+import { useThree, useFrame } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { PaintableSphere } from './PaintableSphere'
@@ -9,13 +9,24 @@ import { useArcballRotation } from '../hooks/useArcballRotation'
 
 export function Scene() {
   const controlsRef = useRef(null)
-  const { gl } = useThree()
+  const { gl, camera } = useThree()
   const toggleTool = useToolStore((state) => state.toggleTool)
   const rotationMode = useToolStore((state) => state.rotationMode)
+  const cameraDistance = useToolStore((state) => state.cameraDistance)
+  const setCameraDistance = useToolStore((state) => state.setCameraDistance)
   const setCaptureSnapshot = useProjectStore((state) => state.setCaptureSnapshot)
   
   // Ball rotation state (quaternion for smooth rotation)
   const [ballRotation, setBallRotation] = useState(() => new THREE.Quaternion())
+  
+  // Track camera distance for brush cursor scaling
+  useFrame(() => {
+    const distance = camera.position.length()
+    // Only update store if distance changed significantly (avoid unnecessary renders)
+    if (Math.abs(distance - cameraDistance) > 0.01) {
+      setCameraDistance(distance)
+    }
+  })
   
   // Register snapshot capture function
   useEffect(() => {
