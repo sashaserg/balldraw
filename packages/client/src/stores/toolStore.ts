@@ -53,7 +53,7 @@ export const useToolStore = create<ToolState>()(
       tool: 'paint',
       brushColor: '#e74c3c', // Red
       brushSize: 20,
-      rotationMode: 'camera', // Default to camera rotation (ball rotation available but hidden)
+      rotationMode: 'ball', // Ball rotation is default (more intuitive for painting)
       cameraDistance: DEFAULT_CAMERA_DISTANCE,
       favoriteColors: [null, null, null, null, null, null, null, null],
   
