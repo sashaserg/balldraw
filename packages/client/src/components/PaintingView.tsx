@@ -223,7 +223,7 @@ export function PaintingView() {
       
       <SessionPanel />
       <Toolbar />
-      <DebugPanel />
+      {import.meta.env.DEV && <DebugPanel />}
     </>
   )
 }
