@@ -1,10 +1,20 @@
-import { useToolStore, MIN_BRUSH_SIZE, MAX_BRUSH_SIZE } from '../stores/toolStore'
+import { useToolStore, MIN_BRUSH_SIZE, MAX_BRUSH_SIZE, PREDEFINED_COLORS } from '../stores/toolStore'
 import { useEventStore } from '../stores/eventStore'
 import { useSessionStore } from '../stores/sessionStore'
 import { socketService } from '../network/socket'
+import { ColorPicker } from './ColorPicker'
 
 export function Toolbar() {
-  const { tool, brushColor, brushSize, colors, setBrushColor, setBrushSize } = useToolStore()
+  const { 
+    tool, 
+    brushColor, 
+    brushSize, 
+    favoriteColors,
+    setBrushColor, 
+    setBrushSize,
+    setFavoriteColor,
+    clearFavoriteColor,
+  } = useToolStore()
   const { undo, redo, canUndo, canRedo, getUndoableStrokeId, getRedoableStrokeId } = useEventStore()
   const { currentUser, isInSession } = useSessionStore()
   
@@ -92,8 +102,10 @@ export function Toolbar() {
       {/* Color picker */}
       <div style={styles.section}>
         <div style={styles.label}>Color</div>
-        <div style={styles.colorGrid}>
-          {colors.map((color) => (
+        
+        {/* Predefined colors row */}
+        <div style={styles.colorRow}>
+          {PREDEFINED_COLORS.map((color) => (
             <button
               key={color}
               onClick={() => setBrushColor(color)}
@@ -103,9 +115,50 @@ export function Toolbar() {
                 border: brushColor === color ? '3px solid white' : '2px solid transparent',
                 transform: brushColor === color ? 'scale(1.1)' : 'scale(1)',
               }}
+              title={color}
             />
           ))}
         </div>
+        
+        {/* Favorite colors row */}
+        <div style={styles.colorRow}>
+          {favoriteColors.map((color, index) => (
+            <button
+              key={index}
+              onClick={() => {
+                if (color) {
+                  // Slot has color - select it
+                  setBrushColor(color)
+                } else {
+                  // Empty slot - fill with current color
+                  setFavoriteColor(index, brushColor)
+                }
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                if (color) {
+                  clearFavoriteColor(index)
+                }
+              }}
+              style={{
+                ...styles.colorButton,
+                background: color || 'transparent',
+                border: color && brushColor === color 
+                  ? '3px solid white' 
+                  : color 
+                    ? '2px solid transparent'
+                    : '2px dashed #4b5563',
+                transform: color && brushColor === color ? 'scale(1.1)' : 'scale(1)',
+              }}
+              title={color ? `${color} (right-click to clear)` : 'Click to save current color'}
+            >
+              {!color && <span style={styles.emptySlot}>+</span>}
+            </button>
+          ))}
+        </div>
+        
+        {/* HSV Color picker */}
+        <ColorPicker color={brushColor} onChange={setBrushColor} />
       </div>
 
       {/* Brush size */}
@@ -183,17 +236,26 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 10,
     color: '#6b7280',
   },
-  colorGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(4, 1fr)',
-    gap: 6,
+  colorRow: {
+    display: 'flex',
+    gap: 4,
   },
   colorButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 5,
     cursor: 'pointer',
     transition: 'all 0.15s ease',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 0,
+    background: 'transparent',
+  },
+  emptySlot: {
+    color: '#4b5563',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   sizeSlider: {
     width: 100,
