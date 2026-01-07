@@ -16,8 +16,8 @@ import { socketService } from '../network/socket'
 // Throttle for cursor updates (50ms = ~20 updates/sec)
 const CURSOR_THROTTLE_MS = 50
 
-// Debounce delay for auto-save (2 seconds after last change)
-const AUTO_SAVE_DELAY_MS = 2000
+// Debounce delay for auto-save (500ms after last change)
+const AUTO_SAVE_DELAY_MS = 500
 
 export function PaintingView() {
   const { projectId } = useParams<{ projectId: string }>()
@@ -76,6 +76,23 @@ export function PaintingView() {
         clearTimeout(saveTimeoutRef.current)
       }
     }
+  }, [currentProject, saveCurrentProject])
+  
+  // Save immediately before page unload (refresh/close)
+  useEffect(() => {
+    if (!currentProject) return
+    
+    const handleBeforeUnload = () => {
+      // Cancel any pending debounced save
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+      // Save synchronously (best effort - some browsers limit this)
+      saveCurrentProject()
+    }
+    
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [currentProject, saveCurrentProject])
   
   // Load project on mount
