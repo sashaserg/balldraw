@@ -38,8 +38,17 @@ export interface RedoEvent {
   strokeId: string           // The stroke being redone
 }
 
+// Change background color
+export interface BgColorEvent {
+  id: string
+  type: 'bg_color'
+  userId: string
+  timestamp: number
+  color: string              // New background color
+}
+
 // Union type for all drawable events
-export type DrawEvent = PaintEvent | UndoEvent | RedoEvent
+export type DrawEvent = PaintEvent | UndoEvent | RedoEvent | BgColorEvent
 
 // Type guards
 export function isPaintEvent(event: DrawEvent): event is PaintEvent {
@@ -52,6 +61,10 @@ export function isUndoEvent(event: DrawEvent): event is UndoEvent {
 
 export function isRedoEvent(event: DrawEvent): event is RedoEvent {
   return event.type === 'redo'
+}
+
+export function isBgColorEvent(event: DrawEvent): event is BgColorEvent {
+  return event.type === 'bg_color'
 }
 
 // ============================================================================
@@ -93,9 +106,15 @@ export function computeVisibility(events: DrawEvent[]): Set<string> {
 // STATE
 // ============================================================================
 
+// Default background color for the sphere
+export const DEFAULT_BG_COLOR = '#a0a0a0'
+
 interface EventState {
   // All events (append-only log - source of truth)
   events: DrawEvent[]
+  
+  // Current background color (derived from bg_color events)
+  bgColor: string
   
   // Current stroke being drawn (not yet committed)
   currentStroke: PaintEvent[]
@@ -129,6 +148,9 @@ interface EventState {
   getRedoableStrokeId: (userId: string) => string | null
   getRedoStack: (userId: string) => string[]  // Cached redo stack for user
   
+  // Background color
+  setBgColor: (color: string, userId: string) => BgColorEvent
+  
   // For receiving remote events
   addRemoteEvent: (event: DrawEvent) => void
   addRemoteEvents: (events: DrawEvent[]) => void
@@ -158,6 +180,7 @@ let redoStacksCache: Map<string, string[]> | null = null  // userId -> redoStack
 
 export const useEventStore = create<EventState>((set, get) => ({
   events: [],
+  bgColor: DEFAULT_BG_COLOR,
   currentStroke: [],
   currentStrokeId: null,
   lastReplayedIndex: -1,
@@ -300,12 +323,36 @@ export const useEventStore = create<EventState>((set, get) => ({
     
     set({
       events: [],
+      bgColor: DEFAULT_BG_COLOR,
       currentStroke: [],
       currentStrokeId: null,
       lastReplayedIndex: -1,
     })
     
     window.dispatchEvent(new CustomEvent('drawball:needsReplay'))
+  },
+  
+  setBgColor: (color: string, userId: string) => {
+    const bgColorEvent: BgColorEvent = {
+      id: generateEventId(),
+      type: 'bg_color',
+      userId,
+      timestamp: Date.now(),
+      color,
+    }
+    
+    sortedEventsCache = null
+    visibilityCache = null
+    
+    set((state) => ({
+      events: [...state.events, bgColorEvent],
+      bgColor: color,
+    }))
+    
+    // Signal that we need a full replay (background changed)
+    get()._signalVisibilityChange()
+    
+    return bgColorEvent
   },
   
   addRemoteEvent: (event) => {
@@ -318,11 +365,15 @@ export const useEventStore = create<EventState>((set, get) => ({
     visibilityCache = null
     redoStacksCache = null
     
-    // If it's an undo/redo event, we need to trigger a full replay
-    const needsReplay = event.type === 'undo' || event.type === 'redo'
+    // If it's an undo/redo/bg_color event, we need to trigger a full replay
+    const needsReplay = event.type === 'undo' || event.type === 'redo' || event.type === 'bg_color'
+    
+    // Update bgColor if this is a bg_color event
+    const newBgColor = event.type === 'bg_color' ? event.color : get().bgColor
     
     set({
       events: [...events, event].sort((a, b) => a.timestamp - b.timestamp),
+      bgColor: newBgColor,
     })
     
     if (needsReplay) {
@@ -343,11 +394,19 @@ export const useEventStore = create<EventState>((set, get) => ({
     visibilityCache = null
     redoStacksCache = null
     
-    // Check if any of the new events are undo/redo (need replay)
-    const needsReplay = newEvents.some(e => e.type === 'undo' || e.type === 'redo')
+    // Check if any of the new events are undo/redo/bg_color (need replay)
+    const needsReplay = newEvents.some(e => e.type === 'undo' || e.type === 'redo' || e.type === 'bg_color')
+    
+    // Find the latest bg_color event to set the current background
+    const allEvents = [...events, ...newEvents].sort((a, b) => a.timestamp - b.timestamp)
+    const latestBgColorEvent = [...allEvents].reverse().find(e => e.type === 'bg_color')
+    const newBgColor = latestBgColorEvent && isBgColorEvent(latestBgColorEvent) 
+      ? latestBgColorEvent.color 
+      : get().bgColor
     
     set({
-      events: [...events, ...newEvents].sort((a, b) => a.timestamp - b.timestamp),
+      events: allEvents,
+      bgColor: newBgColor,
     })
     
     if (needsReplay) {

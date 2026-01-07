@@ -11,9 +11,6 @@ import { sphereRoundBrush, type BrushConfig } from '../brushes'
 // Canvas texture resolution (higher = more detail, but more memory)
 const TEXTURE_SIZE = 4096
 
-// Base gray color for the sphere
-const BASE_COLOR = '#a0a0a0'
-
 // Throttle: minimum ms between paint events (33ms = ~30 events/sec)
 const PAINT_THROTTLE_MS = 33
 
@@ -51,8 +48,9 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
     const newCtx = newCanvas.getContext('2d')
     if (!newCtx) return
     
-    // Fill with base gray color
-    newCtx.fillStyle = BASE_COLOR
+    // Fill with current background color from store (might have been loaded already)
+    const currentBgColor = useEventStore.getState().bgColor
+    newCtx.fillStyle = currentBgColor
     newCtx.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
     
     const newTexture = new THREE.CanvasTexture(newCanvas)
@@ -74,14 +72,14 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
   }, [])
 
   // Render a single event to the canvas using the sphere brush
-  const renderEvent = useCallback((event: PaintEvent) => {
+  const renderEvent = useCallback((event: PaintEvent, baseColor: string) => {
     const ctx = ctxRef.current
     if (!ctx) return
     
     const brushConfig: BrushConfig = {
       ctx,
       textureSize: TEXTURE_SIZE,
-      baseColor: BASE_COLOR,
+      baseColor,
     }
     
     sphereRoundBrush.render(event, brushConfig)
@@ -93,17 +91,18 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
     const ctx = ctxRef.current
     if (!ctx) return
     
-    // Get only visible paint events (respects undo/redo state)
+    // Get current bg color and visible events
+    const currentBgColor = useEventStore.getState().bgColor
     const events = useEventStore.getState().getVisiblePaintEvents()
     
-    // Clear to base color
-    ctx.fillStyle = BASE_COLOR
+    // Clear to current background color
+    ctx.fillStyle = currentBgColor
     ctx.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
     
     // Render all visible events in order and track them
     renderedEventIds.current.clear()
     for (const event of events) {
-      renderEvent(event)
+      renderEvent(event, currentBgColor)
       renderedEventIds.current.add(event.id)
     }
     
@@ -123,9 +122,10 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
     const newEvents = events.filter(e => !renderedEventIds.current.has(e.id))
     if (newEvents.length === 0) return
     
+    const currentBgColor = useEventStore.getState().bgColor
     perfMonitor.trackRender(newEvents.length)
     for (const event of newEvents) {
-      renderEvent(event)
+      renderEvent(event, currentBgColor)
       renderedEventIds.current.add(event.id)
     }
     
@@ -256,12 +256,13 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
     }
   }, [gl, handlePointerDown, handlePointerMove, handlePointerUp])
 
-  // Clear canvas to base color
+  // Clear canvas to background color
   const clearCanvas = useCallback(() => {
     const ctx = ctxRef.current
     if (!ctx) return
     
-    ctx.fillStyle = BASE_COLOR
+    const currentBgColor = useEventStore.getState().bgColor
+    ctx.fillStyle = currentBgColor
     ctx.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
     renderedEventIds.current.clear()
     
@@ -305,7 +306,8 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
         
         // After a short delay, do the actual replay
         setTimeout(() => {
-          ctx.fillStyle = BASE_COLOR
+          const currentBgColor = useEventStore.getState().bgColor
+          ctx.fillStyle = currentBgColor
           ctx.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
           renderedEventIds.current.clear()
           fullReplay()
@@ -324,7 +326,7 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
       <sphereGeometry args={[1, 128, 128]} />
       <meshStandardMaterial 
         map={texture} 
-        roughness={0.4}
+        roughness={0.6}
         metalness={0.05}
       />
     </mesh>

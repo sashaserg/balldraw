@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import * as projectStorage from '../lib/projectStorage'
 import type { ProjectMeta, Project } from '../lib/projectStorage'
-import { useEventStore, isPaintEvent, computeVisibility } from './eventStore'
+import { useEventStore, isPaintEvent, isBgColorEvent, computeVisibility } from './eventStore'
 
 // ============================================================================
 // PROJECT STATE - Manages projects and current project context
@@ -162,11 +162,21 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       // Bake in visibility - only save visible paint events
       // This discards undo/redo history and compacts storage
       const visibility = computeVisibility(allEvents)
-      const eventsToSave = allEvents.filter(
+      const visiblePaintEvents = allEvents.filter(
         e => isPaintEvent(e) && visibility.has(e.strokeId)
       )
       
-      // Skip saving if no visible strokes (empty project)
+      // Also save the latest bg_color event (if any)
+      const latestBgColorEvent = [...allEvents]
+        .reverse()
+        .find(e => isBgColorEvent(e))
+      
+      // Combine visible paint events with bg_color event
+      const eventsToSave = latestBgColorEvent 
+        ? [latestBgColorEvent, ...visiblePaintEvents]
+        : visiblePaintEvents
+      
+      // Skip saving if no events at all (empty project)
       if (eventsToSave.length === 0) {
         set({ isSaving: false })
         return

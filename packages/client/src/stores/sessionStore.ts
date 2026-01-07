@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { socketService, type User } from '../network/socket'
-import { useEventStore, type DrawEvent, isPaintEvent } from './eventStore'
+import { useEventStore, type DrawEvent, isPaintEvent, isBgColorEvent } from './eventStore'
 import { useCursorStore } from './cursorStore'
 import { createBatcher } from '../utils/batcher'
 
@@ -67,8 +67,18 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         // First restore them locally so the canvas isn't blank
         useEventStore.getState().addRemoteEvents(existingEvents)
         
-        // Then send paint events to server so others can see them
-        // (only paint events, not undo/redo - those are session-specific)
+        // Find the latest bg_color event (if any)
+        const latestBgColorEvent = [...existingEvents]
+          .reverse()
+          .find(e => isBgColorEvent(e))
+        
+        // Send latest bg_color first so others see correct background immediately
+        if (latestBgColorEvent && isBgColorEvent(latestBgColorEvent)) {
+          socketService.sendBgColor(latestBgColorEvent.color)
+        }
+        
+        // Then send paint/erase events
+        // (skip undo/redo - those are session-specific)
         for (const event of existingEvents) {
           if (isPaintEvent(event)) {
             socketService.sendPaint({

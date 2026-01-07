@@ -100,6 +100,20 @@ export function setupSocketHandlers(io: Server, sessionManager: SessionManager) 
       }
     })
 
+    // Handle background color change
+    socket.on('set_bg_color', (data: { color: string }) => {
+      const sessionId = socketSessions.get(socket.id)
+      if (!sessionId) {
+        console.warn('[Server] set_bg_color: socket not in session', socket.id)
+        return
+      }
+
+      const event = sessionManager.addBgColorEvent(sessionId, socket.id, data.color)
+      if (event) {
+        io.to(sessionId).emit('draw_event', event)
+      }
+    })
+
     // Handle cursor movement (2D screen position)
     socket.on('cursor_move', (position: { x: number; y: number } | null) => {
       const sessionId = socketSessions.get(socket.id)

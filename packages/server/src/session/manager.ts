@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid'
-import type { Session, User, PaintEvent, UndoEvent, RedoEvent, DrawEvent } from './types.js'
+import type { Session, User, PaintEvent, UndoEvent, RedoEvent, BgColorEvent, DrawEvent } from './types.js'
 
 // Pre-defined colors for users (up to 4)
 const USER_COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4']
@@ -117,6 +117,22 @@ export class SessionManager {
 
     session.eventLog.push(redoEvent)
     return redoEvent
+  }
+
+  addBgColorEvent(sessionId: string, userId: string, color: string): BgColorEvent | null {
+    const session = this.sessions.get(sessionId)
+    if (!session) return null
+
+    const bgColorEvent: BgColorEvent = {
+      id: nanoid(12),
+      type: 'bg_color',
+      userId,
+      timestamp: Date.now(),
+      color,
+    }
+
+    session.eventLog.push(bgColorEvent)
+    return bgColorEvent
   }
 
   getEvents(sessionId: string): DrawEvent[] {

@@ -42,8 +42,17 @@ export interface RedoEvent {
   strokeId: string           // The stroke being redone
 }
 
+// Change background color
+export interface BgColorEvent {
+  id: string
+  type: 'bg_color'
+  userId: string
+  timestamp: number
+  color: string              // New background color
+}
+
 // Union type for all drawable events
-export type DrawEvent = PaintEvent | UndoEvent | RedoEvent
+export type DrawEvent = PaintEvent | UndoEvent | RedoEvent | BgColorEvent
 
 // Type guard helpers
 export function isPaintEvent(event: DrawEvent): event is PaintEvent {
@@ -56,6 +65,10 @@ export function isUndoEvent(event: DrawEvent): event is UndoEvent {
 
 export function isRedoEvent(event: DrawEvent): event is RedoEvent {
   return event.type === 'redo'
+}
+
+export function isBgColorEvent(event: DrawEvent): event is BgColorEvent {
+  return event.type === 'bg_color'
 }
 
 export interface CursorPosition {

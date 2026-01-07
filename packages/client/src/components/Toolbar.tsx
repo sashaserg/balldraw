@@ -15,7 +15,7 @@ export function Toolbar() {
     setFavoriteColor,
     clearFavoriteColor,
   } = useToolStore()
-  const { undo, redo, canUndo, canRedo, getUndoableStrokeId, getRedoableStrokeId } = useEventStore()
+  const { undo, redo, canUndo, canRedo, getUndoableStrokeId, getRedoableStrokeId, bgColor, setBgColor } = useEventStore()
   const { currentUser, isInSession } = useSessionStore()
   
   const userId = currentUser?.id ?? 'local-user'
@@ -51,6 +51,16 @@ export function Toolbar() {
     // Send to server if in session
     if (isInSession) {
       socketService.sendRedo(strokeId)
+    }
+  }
+
+  const handleBgColorChange = (color: string) => {
+    // Apply locally
+    setBgColor(color, userId)
+    
+    // Send to server if in session
+    if (isInSession) {
+      socketService.sendBgColor(color)
     }
   }
 
@@ -180,6 +190,12 @@ export function Toolbar() {
             background: brushColor,
           }} />
         </div>
+      </div>
+
+      {/* Background color */}
+      <div style={styles.section}>
+        <div style={styles.label}>Background</div>
+        <ColorPicker color={bgColor} onChange={handleBgColorChange} />
       </div>
 
       {/* Rotation mode toggle - hidden for now, will revisit later

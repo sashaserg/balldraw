@@ -36,6 +36,7 @@ export interface ClientToServerEvents {
   paint: (data: Omit<PaintEvent, 'id' | 'timestamp' | 'userId'>) => void
   undo: (data: { strokeId: string }) => void
   redo: (data: { strokeId: string }) => void
+  set_bg_color: (data: { color: string }) => void
   cursor_move: (position: { x: number; y: number } | null) => void
 }
 
@@ -143,6 +144,15 @@ class SocketService {
       return
     }
     this.socket.emit('redo', { strokeId })
+  }
+  
+  // Send background color change
+  sendBgColor(color: string): void {
+    if (!this.socket?.connected) {
+      console.warn('[Socket] sendBgColor: not connected')
+      return
+    }
+    this.socket.emit('set_bg_color', { color })
   }
   
   // Send cursor position (2D normalized screen coordinates)
