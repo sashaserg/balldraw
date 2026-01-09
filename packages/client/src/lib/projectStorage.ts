@@ -10,8 +10,9 @@ export interface ProjectMeta {
   name: string
   createdAt: number
   updatedAt: number
-  thumbnail?: string           // Cached thumbnail data URL
+  thumbnail?: string           // Cached thumbnail data URL (3D view snapshot)
   thumbnailUpdatedAt?: number  // When thumbnail was last generated
+  textureData?: string         // UV texture data URL (for ornaments)
 }
 
 export interface Project extends ProjectMeta {
@@ -53,8 +54,8 @@ export async function getAllProjects(): Promise<ProjectMeta[]> {
   
   // Return metadata only, sorted by most recently updated first
   return projects
-    .map(({ id, name, createdAt, updatedAt, thumbnail, thumbnailUpdatedAt }) => ({ 
-      id, name, createdAt, updatedAt, thumbnail, thumbnailUpdatedAt 
+    .map(({ id, name, createdAt, updatedAt, thumbnail, thumbnailUpdatedAt, textureData }) => ({ 
+      id, name, createdAt, updatedAt, thumbnail, thumbnailUpdatedAt, textureData 
     }))
     .reverse()
 }

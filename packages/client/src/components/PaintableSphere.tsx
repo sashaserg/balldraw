@@ -4,12 +4,16 @@ import * as THREE from 'three'
 import { useToolStore } from '../stores/toolStore'
 import { useEventStore, type PaintEvent } from '../stores/eventStore'
 import { useSessionStore } from '../stores/sessionStore'
+import { useProjectStore } from '../stores/projectStore'
 import { socketService } from '../network/socket'
 import { perfMonitor } from '../utils/perfMonitor'
 import { sphereRoundBrush, type BrushConfig } from '../brushes'
 
 // Canvas texture resolution (higher = more detail, but more memory)
 const TEXTURE_SIZE = 4096
+
+// Ornament texture size (downscaled for tree view)
+const ORNAMENT_TEXTURE_SIZE = 512
 
 // Throttle: minimum ms between paint events (33ms = ~30 events/sec)
 const PAINT_THROTTLE_MS = 33
@@ -68,6 +72,32 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
     
     return () => {
       newTexture.dispose()
+    }
+  }, [])
+
+  // Register texture capture function for saving
+  useEffect(() => {
+    const setCaptureTexture = useProjectStore.getState().setCaptureTexture
+    
+    const captureTexture = () => {
+      const canvas = canvasRef.current
+      if (!canvas) return null
+      
+      // Downscale to ornament size
+      const smallCanvas = document.createElement('canvas')
+      smallCanvas.width = ORNAMENT_TEXTURE_SIZE
+      smallCanvas.height = ORNAMENT_TEXTURE_SIZE
+      const smallCtx = smallCanvas.getContext('2d')
+      if (!smallCtx) return null
+      
+      smallCtx.drawImage(canvas, 0, 0, ORNAMENT_TEXTURE_SIZE, ORNAMENT_TEXTURE_SIZE)
+      return smallCanvas.toDataURL('image/png')
+    }
+    
+    setCaptureTexture(captureTexture)
+    
+    return () => {
+      setCaptureTexture(null)
     }
   }, [])
 

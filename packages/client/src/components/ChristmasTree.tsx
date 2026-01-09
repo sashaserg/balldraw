@@ -5,7 +5,7 @@
  * Provides access to anchor points for attaching user-generated ornaments.
  */
 
-import { useEffect, useState, forwardRef, useImperativeHandle } from 'react'
+import { useEffect, useState, forwardRef, useImperativeHandle, useRef } from 'react'
 import * as THREE from 'three'
 import {
   loadChristmasTree,
@@ -70,7 +70,13 @@ export const ChristmasTree = forwardRef<ChristmasTreeHandle, ChristmasTreeProps>
     const [loadResult, setLoadResult] = useState<TreeLoadResult | null>(null)
     const [error, setError] = useState<Error | null>(null)
     
-    // Load the tree on mount
+    // Store callbacks in refs to avoid effect re-runs
+    const onLoadRef = useRef(onLoad)
+    const onErrorRef = useRef(onError)
+    onLoadRef.current = onLoad
+    onErrorRef.current = onError
+    
+    // Load the tree on mount only
     useEffect(() => {
       let cancelled = false
       
@@ -85,7 +91,7 @@ export const ChristmasTree = forwardRef<ChristmasTreeHandle, ChristmasTreeProps>
             logDiagnostics(result.diagnostics)
           }
           
-          onLoad?.(result)
+          onLoadRef.current?.(result)
         })
         .catch((err) => {
           if (cancelled) return
@@ -93,13 +99,13 @@ export const ChristmasTree = forwardRef<ChristmasTreeHandle, ChristmasTreeProps>
           const error = err instanceof Error ? err : new Error(String(err))
           setError(error)
           console.error('[ChristmasTree] Failed to load:', error)
-          onError?.(error)
+          onErrorRef.current?.(error)
         })
       
       return () => {
         cancelled = true
       }
-    }, [onLoad, onError])
+    }, []) // Empty deps - load only once on mount
     
     // Create/update debug visualization
     useEffect(() => {

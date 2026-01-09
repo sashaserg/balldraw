@@ -22,6 +22,9 @@ interface ProjectState {
   // Snapshot capture callback (set by Scene component)
   _captureSnapshot: (() => string | null) | null
   
+  // Texture capture callback (set by PaintableSphere component)
+  _captureTexture: (() => string | null) | null
+  
   // Actions
   loadProjects: () => Promise<void>
   createProject: () => Promise<Project>
@@ -35,6 +38,9 @@ interface ProjectState {
   
   // Snapshot registration (called by Scene)
   setCaptureSnapshot: (fn: (() => string | null) | null) => void
+  
+  // Texture registration (called by PaintableSphere)
+  setCaptureTexture: (fn: (() => string | null) | null) => void
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
@@ -43,9 +49,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   isLoading: false,
   isSaving: false,
   _captureSnapshot: null,
+  _captureTexture: null,
   
   setCaptureSnapshot: (fn) => {
     set({ _captureSnapshot: fn })
+  },
+  
+  setCaptureTexture: (fn) => {
+    set({ _captureTexture: fn })
   },
   
   loadProjects: async () => {
@@ -148,7 +159,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
   
   saveCurrentProject: async () => {
-    const { currentProject, _captureSnapshot } = get()
+    const { currentProject, _captureSnapshot, _captureTexture } = get()
     
     // Only save if we have a project open
     if (!currentProject) return
@@ -185,12 +196,16 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       // Capture thumbnail from current render
       const thumbnail = _captureSnapshot ? _captureSnapshot() : null
       
+      // Capture UV texture for ornaments (downscaled)
+      const textureData = _captureTexture ? _captureTexture() : null
+      
       await projectStorage.saveProject({
         ...currentProject,
         events: eventsToSave,
         updatedAt: now,
         thumbnail: thumbnail ?? currentProject.thumbnail,
         thumbnailUpdatedAt: thumbnail ? now : currentProject.thumbnailUpdatedAt,
+        textureData: textureData ?? currentProject.textureData,
       })
       
       // Update local state
