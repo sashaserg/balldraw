@@ -16,8 +16,9 @@ const TEXTURE_SIZE = 512
 const ORNAMENT_TEXTURE_SIZE = 512
 
 // Texture scale factor - used for cursor scaling to show accurate brush preview
-// Since we reduced from 4096 to 512 (8x smaller), same brush covers 8x more area
-export const TEXTURE_SCALE_FACTOR = 4096 / 512  // 8.0
+// Since we reduced from 4096 to 512 (8x smaller), same brush covers more area
+// But visual scaling is not linear - use a moderate factor for accuracy
+export const TEXTURE_SCALE_FACTOR = 4.0  // Balanced scaling for cursor accuracy
 
 // Throttle: minimum ms between paint events (33ms = ~30 events/sec)
 const PAINT_THROTTLE_MS = 33
