@@ -188,6 +188,13 @@ export function TreeWithOrnaments({ projects, onLoad }: TreeWithOrnamentsProps) 
       sphere.position.copy(anchor.localPosition)
       sphere.scale.setScalar(Math.max(anchor.radius * 2, 0.08))
       
+      // Orient the sphere to face away from the tree center (outward)
+      // This ensures the "front" face of the painted ball is visible to viewers
+      const treeCenter = new THREE.Vector3(0, anchor.localPosition.y, 0) // Trunk at x=0, z=0
+      const outwardDirection = anchor.localPosition.clone().sub(treeCenter).normalize()
+      const outwardPoint = anchor.localPosition.clone().add(outwardDirection)
+      sphere.lookAt(outwardPoint)
+      
       ornamentsGroup.add(sphere)
     }
   }, [treeData, ornamentAssignments])
