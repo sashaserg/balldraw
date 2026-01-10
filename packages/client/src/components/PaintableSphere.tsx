@@ -9,11 +9,15 @@ import { socketService } from '../network/socket'
 import { perfMonitor } from '../utils/perfMonitor'
 import { sphereRoundBrush, type BrushConfig } from '../brushes'
 
-// Canvas texture resolution (higher = more detail, but more memory)
-const TEXTURE_SIZE = 4096
+// Canvas texture resolution (lower resolution for pixelated retro aesthetic)
+const TEXTURE_SIZE = 512
 
-// Ornament texture size (downscaled for tree view)
+// Ornament texture size (same as painting resolution for consistency)
 const ORNAMENT_TEXTURE_SIZE = 512
+
+// Texture scale factor - used for cursor scaling to show accurate brush preview
+// Since we reduced from 4096 to 512 (8x smaller), same brush covers 8x more area
+export const TEXTURE_SCALE_FACTOR = 4096 / 512  // 8.0
 
 // Throttle: minimum ms between paint events (33ms = ~30 events/sec)
 const PAINT_THROTTLE_MS = 33
@@ -58,12 +62,12 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
     newCtx.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
     
     const newTexture = new THREE.CanvasTexture(newCanvas)
-    // Improve texture quality
+    // Pixelated retro aesthetic - use nearest neighbor filtering
     newTexture.colorSpace = THREE.SRGBColorSpace
-    newTexture.anisotropy = 16 // Sharper at angles
-    newTexture.minFilter = THREE.LinearMipmapLinearFilter
-    newTexture.magFilter = THREE.LinearFilter
-    newTexture.generateMipmaps = true
+    newTexture.anisotropy = 1 // Disable anisotropic filtering for pixelated look
+    newTexture.minFilter = THREE.NearestFilter // Crisp pixels when zoomed out
+    newTexture.magFilter = THREE.NearestFilter // Crisp pixels when zoomed in
+    newTexture.generateMipmaps = false // No mipmaps for pixelated aesthetic
     newTexture.needsUpdate = true
     
     canvasRef.current = newCanvas
@@ -83,15 +87,18 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
       const canvas = canvasRef.current
       if (!canvas) return null
       
-      // Downscale to ornament size
-      const smallCanvas = document.createElement('canvas')
-      smallCanvas.width = ORNAMENT_TEXTURE_SIZE
-      smallCanvas.height = ORNAMENT_TEXTURE_SIZE
-      const smallCtx = smallCanvas.getContext('2d')
-      if (!smallCtx) return null
+      // No downscaling needed - painting and ornament resolution are the same
+      // Use nearest neighbor for consistent pixelated look
+      const textureCanvas = document.createElement('canvas')
+      textureCanvas.width = ORNAMENT_TEXTURE_SIZE
+      textureCanvas.height = ORNAMENT_TEXTURE_SIZE
+      const textureCtx = textureCanvas.getContext('2d')
+      if (!textureCtx) return null
       
-      smallCtx.drawImage(canvas, 0, 0, ORNAMENT_TEXTURE_SIZE, ORNAMENT_TEXTURE_SIZE)
-      return smallCanvas.toDataURL('image/png')
+      // Disable smoothing for pixelated aesthetic
+      textureCtx.imageSmoothingEnabled = false
+      textureCtx.drawImage(canvas, 0, 0, ORNAMENT_TEXTURE_SIZE, ORNAMENT_TEXTURE_SIZE)
+      return textureCanvas.toDataURL('image/png')
     }
     
     setCaptureTexture(captureTexture)
@@ -191,7 +198,7 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
         type: tool,
         position: uv,
         color: brushColor,
-        brushSize,
+        brushSize, // Keep original brush size for painting
         userId,
       }
       
@@ -231,7 +238,7 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
         position: uv,
         fromPosition: lastUV.current ?? undefined,
         color: brushColor,
-        brushSize,
+        brushSize, // Keep original brush size for painting
         userId,
       }
       
@@ -353,7 +360,7 @@ export function PaintableSphere({ rotation }: PaintableSphereProps) {
       ref={meshRef} 
       quaternion={rotation}
     >
-      <sphereGeometry args={[1, 128, 128]} />
+      <sphereGeometry args={[1, 64, 64]} />
       <meshStandardMaterial 
         map={texture} 
         roughness={0.6}

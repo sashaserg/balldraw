@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from 'react'
 import { useToolStore, DEFAULT_CAMERA_DISTANCE, MAX_BRUSH_SIZE } from '../stores/toolStore'
+import { TEXTURE_SCALE_FACTOR } from './PaintableSphere'
 
 interface BrushCursorProps {
   containerRef: React.RefObject<HTMLDivElement>
@@ -17,10 +18,11 @@ export function BrushCursor({ containerRef }: BrushCursorProps) {
   const { brushSize, brushColor, tool, cameraDistance } = useToolStore()
   
   // Scale cursor size based on camera distance with size-dependent adjustment
+  // Apply texture scale factor to show accurate painting size on lower resolution texture
   // Larger brushes get more aggressive compensation (scale down more)
   const zoomScale = DEFAULT_CAMERA_DISTANCE / cameraDistance
   const sizeCompensation = 1 - (brushSize / MAX_BRUSH_SIZE) * 0.3
-  const scaledSize = brushSize * zoomScale * sizeCompensation
+  const scaledSize = brushSize * TEXTURE_SCALE_FACTOR * zoomScale * sizeCompensation
   
   useEffect(() => {
     const container = containerRef.current

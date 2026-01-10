@@ -11,7 +11,7 @@ import { ChristmasTree, type ChristmasTreeHandle } from './ChristmasTree'
 import type { TreeLoadResult, OrnamentAnchor } from '../lib/christmasTree'
 import type { ProjectMeta } from '../lib/projectStorage'
 
-const ORNAMENT_TEXTURE_SIZE = 256
+const ORNAMENT_TEXTURE_SIZE = 512
 
 // Cache textures to prevent recreation
 const textureCache = new Map<string, THREE.CanvasTexture>()
@@ -33,6 +33,10 @@ function createThumbnailTexture(thumbnail: string): THREE.CanvasTexture {
   
   const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.SRGBColorSpace
+  // Pixelated aesthetic - use nearest neighbor filtering
+  texture.minFilter = THREE.NearestFilter
+  texture.magFilter = THREE.NearestFilter
+  texture.generateMipmaps = false
   
   // Cache the texture immediately
   textureCache.set(thumbnail, texture)
@@ -41,6 +45,8 @@ function createThumbnailTexture(thumbnail: string): THREE.CanvasTexture {
   const img = new Image()
   img.crossOrigin = 'anonymous'
   img.onload = () => {
+    // Disable smoothing for pixelated aesthetic
+    ctx.imageSmoothingEnabled = false
     ctx.drawImage(img, 0, 0, ORNAMENT_TEXTURE_SIZE, ORNAMENT_TEXTURE_SIZE)
     texture.needsUpdate = true
   }

@@ -8,9 +8,9 @@
 import { useMemo, useEffect, useRef } from 'react'
 import * as THREE from 'three'
 
-// Lower resolution for ornaments (256px vs 4K main canvas)
-// This is sufficient since ornaments appear small on the tree
-const ORNAMENT_TEXTURE_SIZE = 256
+// Ornament texture resolution (matches main painting canvas for consistency)
+// Using lower resolution with pixelated aesthetic
+const ORNAMENT_TEXTURE_SIZE = 512
 
 interface TreeOrnamentBallProps {
   /** Base64 thumbnail image from project */
@@ -42,6 +42,10 @@ export function TreeOrnamentBall({ thumbnail, scale = 1 }: TreeOrnamentBallProps
     
     const tex = new THREE.CanvasTexture(canvas)
     tex.colorSpace = THREE.SRGBColorSpace
+    // Pixelated aesthetic - use nearest neighbor filtering
+    tex.minFilter = THREE.NearestFilter
+    tex.magFilter = THREE.NearestFilter
+    tex.generateMipmaps = false
     tex.needsUpdate = true
     
     img.onload = () => {
